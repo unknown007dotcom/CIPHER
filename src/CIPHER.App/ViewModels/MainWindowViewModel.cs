@@ -17,7 +17,7 @@ public sealed class MainWindowViewModel : ObservableObject
     private string _input = string.Empty;
     private string _statusText = "Ready";
     private string _progressText = "Type a command or say the configured wake phrase after voice is enabled.";
-    private System.Windows.Media.Brush _statusBrush = System.Windows.Media.System.Windows.Media.Brushes.LimeGreen;
+    private global::System.Windows.Media.Brush _statusBrush = global::System.Windows.Media.Brushes.LimeGreen;
     private bool _isExpanded = true;
     private bool _isSettingsOpen;
     private bool _isBusy;
@@ -107,7 +107,7 @@ public sealed class MainWindowViewModel : ObservableObject
         private set => SetProperty(ref _progressText, value);
     }
 
-    public System.Windows.Media.Brush StatusBrush
+    public global::System.Windows.Media.Brush StatusBrush
     {
         get => _statusBrush;
         private set => SetProperty(ref _statusBrush, value);
@@ -245,7 +245,7 @@ public sealed class MainWindowViewModel : ObservableObject
 
     private void OnEngineEvent(object? sender, AssistantEvent assistantEvent)
     {
-        var dispatcher = Application.Current?.Dispatcher;
+        var dispatcher = global::System.Windows.Application.Current?.Dispatcher;
         if (dispatcher is null || dispatcher.CheckAccess())
         {
             ApplyEngineEvent(assistantEvent);
@@ -287,18 +287,18 @@ public sealed class MainWindowViewModel : ObservableObject
 
         StatusBrush = assistantEvent.State switch
         {
-            AssistantState.Failed => System.Windows.Media.Brushes.IndianRed,
-            AssistantState.Cancelled => System.Windows.Media.Brushes.Goldenrod,
-            AssistantState.WaitingForConfirmation => System.Windows.Media.Brushes.Goldenrod,
-            AssistantState.Completed => System.Windows.Media.Brushes.LimeGreen,
-            AssistantState.Idle => System.Windows.Media.Brushes.LimeGreen,
-            _ => System.Windows.Media.Brushes.DeepSkyBlue
+            AssistantState.Failed => global::System.Windows.Media.Brushes.IndianRed,
+            AssistantState.Cancelled => global::System.Windows.Media.Brushes.Goldenrod,
+            AssistantState.WaitingForConfirmation => global::System.Windows.Media.Brushes.Goldenrod,
+            AssistantState.Completed => global::System.Windows.Media.Brushes.LimeGreen,
+            AssistantState.Idle => global::System.Windows.Media.Brushes.LimeGreen,
+            _ => global::System.Windows.Media.Brushes.DeepSkyBlue
         };
     }
 
     private void AddConversation(string message)
     {
-        var dispatcher = Application.Current?.Dispatcher;
+        var dispatcher = global::System.Windows.Application.Current?.Dispatcher;
         if (dispatcher is not null && !dispatcher.CheckAccess())
         {
             dispatcher.Invoke(() => Conversation.Add(message));
@@ -317,7 +317,7 @@ public sealed class MainWindowViewModel : ObservableObject
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var dispatcher = Application.Current?.Dispatcher;
+            var dispatcher = global::System.Windows.Application.Current?.Dispatcher;
             if (dispatcher is null)
             {
                 return Task.FromResult(false);
@@ -341,8 +341,8 @@ public sealed class MainWindowViewModel : ObservableObject
                 $"Action: {command.Summary}\nTarget: {target}{destination}{argument}\n\n" +
                 $"Policy: {decision.Reason}\n\nDo you want to continue?";
 
-            var result = MessageBox.Show(
-                Application.Current?.MainWindow,
+            var result = global::System.Windows.MessageBox.Show(
+                global::System.Windows.Application.Current?.MainWindow,
                 message,
                 "CIPHER confirmation required",
                 MessageBoxButton.YesNo,
