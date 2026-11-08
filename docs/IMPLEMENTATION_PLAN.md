@@ -177,11 +177,13 @@ Implemented foundation:
 - [x] No arbitrary shell execution.
 - [x] Reversible quarantine delete.
 - [x] Graceful close rather than force-kill.
-- [ ] Structured local audit log with retention controls.
-- [ ] Recovery UI for quarantine and interrupted tasks.
-- [ ] Threat-model review for browser/delegation workflows.
+- [x] Structured local audit log with retention controls (hash-chained, size-rotated, redacted; Stage 9).
+- [x] Recovery UI for quarantine and interrupted tasks (`list quarantine`/`restore <name>`, startup notices, `--safe-mode`; Stage 9).
+- [x] Threat-model review for browser/delegation workflows (`docs/THREAT_MODEL.md`; Stage 9).
 
 Exit gate: security test cases prove blocked, cancelled, and failed actions do not mutate data.
+**Stage 9 status: complete** — deterministic tests plus the Stage 9 security-gate and audit
+harnesses passed in CI; see `docs/TEST_REPORT_STAGE9.md`. Remaining stage: 10 (WiX MSI).
 
 ### Stage 10 — Real offline WiX MSI
 

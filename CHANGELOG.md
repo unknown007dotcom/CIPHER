@@ -9,6 +9,16 @@ once the first tested release exists.
 
 ### Added
 
+- Stage 9 security & recovery hardening (CI-verified; see `docs/TEST_REPORT_STAGE9.md`):
+  hash-chained local audit log with rotation and `verify audit log`, credential-shaped
+  redaction for journal/audit writes, quarantine list/restore with original-location
+  metadata, `--safe-mode` startup, and `docs/THREAT_MODEL.md`.
+- Stage 8 external AI delegation (CI-verified; see `docs/TEST_REPORT_STAGE8.md`):
+  `ask ai` with exact-preview confirmation, DPAPI key storage, verified result artifacts,
+  review-only command suggestions, and a loopback fake-endpoint harness.
+- Stage 7 persistence (CI-verified; see `docs/TEST_REPORT_STAGE7.md`): SQLite task journal
+  with interrupted-task recovery, aliases, learned app paths, and corruption quarantine.
+
 - Stage 8 external AI delegation: `ask ai …` / `delegate …` commands backed by a
   `CIPHER.Delegation` module (OpenAI-compatible client, cloud or local endpoints).
   Policy requires explicit approval of the exact prompt every time; the API key is

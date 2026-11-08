@@ -46,6 +46,20 @@ Include:
   store, or replay the user's browser passwords/cookies, and it does not automate
   CAPTCHA, MFA, or login challenges.
 
+## Audit, recovery, and safe mode (Stage 9)
+
+- CIPHER keeps a hash-chained local audit log (blocked/cancelled actions, delegation calls,
+  key save/delete, memory recovery) at `%LocalAppData%\CIPHER\logs\cipher-audit.log`.
+  Run `verify audit log` to recompute the chain. It is tamper-evidence, not attestation:
+  someone with write access to the user profile could regenerate a chain. See
+  `docs/THREAT_MODEL.md`.
+- Deletes are recoverable: `list quarantine` shows quarantined items and `restore <name>`
+  (with confirmation) returns them to their original location, never overwriting.
+- `CIPHER.exe --safe-mode` disables external AI delegation and wake listening for the
+  session while keeping typed commands, quarantine review, and audit verification available.
+- Command journal/history entries and audit details are scrubbed of credential-shaped text
+  before being written.
+
 ## Current limitations
 
 - Voice and browser automation run in the current user's desktop session; microphone use

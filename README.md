@@ -59,6 +59,10 @@ and a real offline WiX MSI installer.
   start. Teach CIPHER with `alias morning = open notepad` and
   `remember app my editor at C:\Tools\editor.exe`; `list aliases` / `list apps` /
   `forget …` manage them. Aliases expand through the same safety-checked command flow.
+- Security & recovery (Stage 9): a hash-chained local audit log (see `verify audit log`),
+  credential-shaped redaction in the journal and audit log, quarantine recovery
+  (`list quarantine`, `restore <name>` with confirmation), a `--safe-mode` startup flag,
+  and a threat model in `docs/THREAT_MODEL.md`.
 - Offline voice (Stage 6): Vosk speech recognition with “Hey CIPHER” wake-phrase
   listening (off by default, microphone only open while enabled) and push-to-talk via
   the 🎙 button; recognized speech runs through the same deterministic command engine.
@@ -104,6 +108,9 @@ click Save button in Notepad
 type hello into Search field in Notepad
 open website example.com
 read page text
+list quarantine
+restore report.txt
+verify audit log
 browser fill Email with ada@example.com
 browser click Submit registration
 browser download Download hello.txt
@@ -219,6 +226,8 @@ See [SECURITY.md](SECURITY.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 - [Stage 6 offline voice report](docs/TEST_REPORT_STAGE6.md)
 - [Stage 7 memory and recovery report](docs/TEST_REPORT_STAGE7.md)
 - [Stage 8 external AI delegation report](docs/TEST_REPORT_STAGE8.md)
+- [Stage 9 security & recovery report](docs/TEST_REPORT_STAGE9.md)
+- [Threat model](docs/THREAT_MODEL.md)
 - [Changelog](CHANGELOG.md)
 
 ## License

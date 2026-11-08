@@ -11,6 +11,8 @@
 
 Current xUnit coverage:
 
+- Stage 9 security gates (blocked/cancelled/failed actions reach no executor, redacted
+  journaling), audit-chain integrity/tamper detection, and secret redaction;
 - wake-phrase detection and removal;
 - open/type/press/help/time/date/system-info parsing;
 - read/verify window-text command parsing;
@@ -117,6 +119,23 @@ with a read-back-verified artifact file, a `COMMAND:` suggestion was surfaced wi
 being executed, a denied confirmation produced zero endpoint requests, and
 disabled/missing-key configurations failed closed before HTTP. See
 `docs/TEST_REPORT_STAGE8.md`. Real-provider calls are never made in CI.
+
+### Stage 9 security and recovery
+
+Two harnesses run in CI:
+
+```powershell
+src\CIPHER.SecurityTest\bin\Release\net10.0\CIPHER.SecurityTest.exe --write  --log <path>
+src\CIPHER.SecurityTest\bin\Release\net10.0\CIPHER.SecurityTest.exe --verify --log <path>
+src\CIPHER.MilestoneTest\bin\Release\net10.0-windows\CIPHER.MilestoneTest.exe stage9
+```
+
+Exit code `0` with `STAGE9-PASS` means the audit hash chain verified across processes,
+credential-shaped secrets never reached the log file, tampering was pinpointed at the
+modified line, delete → quarantine → list → restore round-tripped byte-identically, and
+denied/blocked actions mutated nothing. Deterministic gate/redaction/audit cases are in
+`src/CIPHER.Tests/SecurityHardeningTests.cs`. See `docs/TEST_REPORT_STAGE9.md` and
+`docs/THREAT_MODEL.md`.
 
 ### Stage 3 Notepad milestone
 
