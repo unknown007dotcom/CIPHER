@@ -9,6 +9,19 @@ once the first tested release exists.
 
 ### Added
 
+- Stage 8 external AI delegation: `ask ai …` / `delegate …` commands backed by a
+  `CIPHER.Delegation` module (OpenAI-compatible client, cloud or local endpoints).
+  Policy requires explicit approval of the exact prompt every time; the API key is
+  entered only via the Settings password box and stored DPAPI-encrypted (never in
+  settings, the database, logs, or command history). Replies are saved to the Results
+  folder and read-back verified; AI-suggested commands are surfaced for manual review
+  and never executed automatically. A loopback fake-endpoint harness verifies the full
+  pipeline in CI, including denial and fail-closed cases (run 42501585138). 97
+  deterministic test cases are now covered.
+- Fixed (found by audit): the Stage 6 settings toggles for wake listening and spoken
+  responses were missing from the settings panel, and `SpeechOutputEnabled` was not
+  persisted on save. Both are corrected.
+
 - Stage 7 persistent memory: a `CIPHER.Memory` SQLite store (WAL, schema-migrated,
   corruption-quarantining) holding the task journal, command history, user aliases
   (`alias morning = open notepad`), and learned application paths

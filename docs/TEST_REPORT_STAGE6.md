@@ -45,6 +45,14 @@ using deterministic generated inputs and the real production code:
   (`%LocalAppData%\CIPHER\models\vosk-model-small-en-us-0.15` or a `models` folder next to
   the app). Nothing audio-related is loaded at idle, and no audio leaves the PC.
 
+## Erratum (found and fixed in Stage 8)
+
+Two UI gaps from a parallel-edit accident were discovered by audit during Stage 8:
+the settings panel's wake-listening and speak-responses toggles were missing from the
+XAML (the ViewModel support existed but was unreachable), and `SpeechOutputEnabled`
+was loaded at startup but never written back by Save Settings. Both are fixed as of
+the Stage 8 commits; see `docs/TEST_REPORT_STAGE8.md`.
+
 ## Honest limitations
 
 - **No physical microphone or speakers were available in CI.** Capture uses NAudio

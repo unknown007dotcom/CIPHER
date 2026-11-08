@@ -32,10 +32,24 @@ Include:
 - External sharing/delegation must ask before sending private documents to a third-party service.
 - CIPHER must not bypass CAPTCHAs, MFA, access controls, Windows UAC, or platform restrictions.
 
+## External AI delegation (Stage 8)
+
+- Delegation is **off by default** and each prompt requires explicit approval showing the
+  exact text that will be sent. CIPHER's core never needs it.
+- The API key exists only as DPAPI-encrypted data (`%LocalAppData%\CIPHER\secrets\ai-api-key.bin`).
+  It is never written to settings, the SQLite memory, logs, or command history, and the UI
+  refuses key entry through the (journaled) command box by design.
+- Only the approved prompt text is sent — the client has no access to files, history,
+  browser data, or memory contents. Replies are treated as untrusted text: a suggested
+  command is displayed for review and is never executed automatically.
+- Browser automation uses ephemeral, CIPHER-managed sessions; CIPHER does not read,
+  store, or replay the user's browser passwords/cookies, and it does not automate
+  CAPTCHA, MFA, or login challenges.
+
 ## Current limitations
 
-- Voice, browser automation, and external AI delegation are not implemented yet, so their runtime
-  attack surface is not present in this build.
+- Voice and browser automation run in the current user's desktop session; microphone use
+  is visible and user-started (or explicitly toggled for wake listening).
 - UI Automation and simulated input act within the current desktop session. CIPHER cannot and
   must not interact with secure desktops or another user's session.
 - The final installer has not yet undergone clean-machine install/uninstall security testing.

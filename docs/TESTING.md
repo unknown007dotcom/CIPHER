@@ -103,6 +103,21 @@ simulated kill); the verify process must recover it, mark it Interrupted (not
 re-executed), and find the saved alias, app path, and history entry. `STAGE7-PASS`
 means recovery worked across a real process restart. See `docs/TEST_REPORT_STAGE7.md`.
 
+### Stage 8 external AI delegation
+
+Run the loopback delegation harness (fake OpenAI-compatible endpoint on `127.0.0.1`;
+no external network, no real key):
+
+```powershell
+src\CIPHER.DelegationTest\bin\Release\net10.0\CIPHER.DelegationTest.exe
+```
+
+Exit code `0` with `STAGE8-PASS` means an approved prompt returned the canned answer
+with a read-back-verified artifact file, a `COMMAND:` suggestion was surfaced without
+being executed, a denied confirmation produced zero endpoint requests, and
+disabled/missing-key configurations failed closed before HTTP. See
+`docs/TEST_REPORT_STAGE8.md`. Real-provider calls are never made in CI.
+
 ### Stage 3 Notepad milestone
 
 This milestone is automated by `src/CIPHER.MilestoneTest` and runs in GitHub-hosted Windows

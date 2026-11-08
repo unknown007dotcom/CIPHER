@@ -149,15 +149,24 @@ Implemented:
 
 ### Stage 8 — External AI delegation
 
-Planned:
+Implemented:
 
-- Configurable platforms and user-approved browser workflows.
-- Upload/send only after explicit permission for sensitive files.
-- Monitor state, surface clarifications, retrieve outputs, save locally, and verify artifacts.
-- Never bypass CAPTCHA, MFA, access controls, or platform restrictions.
-- Never claim completion without checking the resulting output.
-
-Exit gate: end-to-end delegated task produces a verified local artifact and an accurate report.
+- [x] Configurable platform: any OpenAI-compatible endpoint (cloud or local model
+  server), configured in Settings with the API key stored DPAPI-encrypted — never in
+  settings JSON, the database, logs, or command history.
+- [x] Every prompt is previewed and explicitly approved (policy: High risk, always
+  confirm) before anything is sent; nothing is uploaded or sent without that approval.
+- [x] Outputs are retrieved, saved to a local artifact file, and read-back verified;
+  completion is only claimed when the artifact check passes.
+- [x] AI-suggested commands are surfaced for user review and never executed
+  automatically; if the user sends one, it passes the normal policy/confirmation flow.
+- [x] Exit gate passed: loopback fake-endpoint harness verified answer + verified
+  artifact, suggestion handling, denial, and fail-closed config in CI
+  (run 42501585138; see `docs/TEST_REPORT_STAGE8.md`). 97 test cases covered.
+- [ ] Browser-based AI platforms as a delegation transport — deferred: fragile
+  third-party page structures and CAPTCHA/MFA/platform-terms boundaries CIPHER must
+  not cross. API delegation covers the capability today.
+- [ ] Delegated multi-step workflows (AI-planned sequences with per-step verification).
 
 ### Stage 9 — Security and recovery hardening
 
