@@ -203,6 +203,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Stage 7 recovery verification failed with exit code $LASTEXITCODE." }
 
       - name: Run Stage 8 delegation harness (loopback fake AI endpoint)
+        timeout-minutes: 5
         shell: pwsh
         run: |
           ./src/CIPHER.DelegationTest/bin/Release/net10.0/CIPHER.DelegationTest.exe

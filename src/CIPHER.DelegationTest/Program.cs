@@ -110,7 +110,9 @@ internal static class Program
             cancellation.Cancel();
             try
             {
-                await serverTask.ConfigureAwait(false);
+                // The fake server stops via the cancellation registration; never let
+                // harness shutdown block the process itself.
+                await Task.WhenAny(serverTask, Task.Delay(TimeSpan.FromSeconds(5))).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {
@@ -177,6 +179,17 @@ internal static class Program
         using var listener = new HttpListener();
         listener.Prefixes.Add($"http://127.0.0.1:{port}/");
         listener.Start();
+        using var stopRegistration = cancellationToken.Register(() =>
+        {
+            try
+            {
+                listener.Stop();
+            }
+            catch (Exception)
+            {
+                // Already stopped/disposed during shutdown.
+            }
+        });
         try
         {
             while (!cancellationToken.IsCancellationRequested)
