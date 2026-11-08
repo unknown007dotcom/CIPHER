@@ -133,13 +133,19 @@ Implemented:
 
 ### Stage 7 — SQLite memory and recovery
 
-Planned:
+Implemented:
 
-- Preferences, application paths, tasks, task steps, history, and recovery checkpoints.
-- Database migrations and corruption handling.
-- No plaintext passwords, cookies, or credentials.
-
-Exit gate: kill/restart tests recover interrupted tasks without repeating destructive steps.
+- [x] SQLite memory (`CIPHER.Memory`): task journal with recovery checkpoints, command
+  history, user aliases, and learned application paths layered over the built-in catalog.
+  (Preferences stay in the existing JSON settings file by design.)
+- [x] Schema versioning/migrations and corruption handling: a damaged database is
+  quarantined (`*.corrupt-<timestamp>`, kept for inspection) and recreated.
+- [x] No plaintext passwords, cookies, or credentials are stored.
+- [x] Exit gate passed: two-process kill/restart harness in CI recovered an interrupted
+  task and marked it Interrupted without re-executing it (run 42496132641; see
+  `docs/TEST_REPORT_STAGE7.md`). 84 Core/memory test cases covered.
+- [ ] Step-level resume inside a partially completed multi-step action (recovery is
+  task-level: report + wait for the user, by design).
 
 ### Stage 8 — External AI delegation
 

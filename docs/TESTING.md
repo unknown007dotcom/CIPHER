@@ -88,6 +88,21 @@ command, and eSpeak NG rendered speech to a valid WAV file. Exit code `3` means 
 model or test audio was unavailable (skipped, reported as a warning — never a fake
 pass). Microphone capture and speaker playback still require a physical-machine check.
 
+### Stage 7 memory and recovery
+
+The SQLite store is covered by integration tests (temp database files) plus a
+two-process kill/restart harness run in CI:
+
+```powershell
+src\CIPHER.MemoryTest\bin\Release\net10.0\CIPHER.MemoryTest.exe --write  --db $env:TEMP\cipher-stage7.db
+src\CIPHER.MemoryTest\bin\Release\net10.0\CIPHER.MemoryTest.exe --verify --db $env:TEMP\cipher-stage7.db
+```
+
+The write process journals a task as Running and exits without completing it (the
+simulated kill); the verify process must recover it, mark it Interrupted (not
+re-executed), and find the saved alias, app path, and history entry. `STAGE7-PASS`
+means recovery worked across a real process restart. See `docs/TEST_REPORT_STAGE7.md`.
+
 ### Stage 3 Notepad milestone
 
 This milestone is automated by `src/CIPHER.MilestoneTest` and runs in GitHub-hosted Windows

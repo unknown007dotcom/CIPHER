@@ -9,6 +9,14 @@ once the first tested release exists.
 
 ### Added
 
+- Stage 7 persistent memory: a `CIPHER.Memory` SQLite store (WAL, schema-migrated,
+  corruption-quarantining) holding the task journal, command history, user aliases
+  (`alias morning = open notepad`), and learned application paths
+  (`remember app … at …`, layered over the built-in catalog). Interrupted tasks are
+  recovered at startup and marked Interrupted — reported, never automatically
+  re-executed. A two-process kill/restart harness verifies recovery in CI
+  (run 42496132641). 84 deterministic test cases are now covered.
+
 - Stage 6 offline voice: a `CIPHER.Voice` module with Vosk recognition (loaded only
   while listening), NAudio microphone capture, and eSpeak NG speech output. Push-to-talk
   on the microphone button, optional continuous “Hey CIPHER” wake-phrase listening
