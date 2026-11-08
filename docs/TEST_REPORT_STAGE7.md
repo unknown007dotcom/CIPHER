@@ -9,8 +9,8 @@
   interrupted task across processes without re-executing it. The deterministic suite grew
   from 57 to 84 cases, including real-SQLite integration tests. Stages 3, 5, and 6 also
   passed in the same run; the Stage 4 harness reported a window-launch timeout in this
-  run only (it passed in every Stage 1–6 run) — flagged for confirmation as a likely
-  runner timing flake in the follow-up run.
+  run only. Follow-up: in run 42496912571 all five harnesses (Stages 3–7) passed,
+  confirming that single Stage 4 timeout was a runner timing flake, not a regression.
 
 ## Scenario executed
 
