@@ -235,6 +235,32 @@ internal static class Program
 
                     Console.WriteLine(
                         $"::warning title=Calculator button names::{string.Join(" | ", buttonNames.Take(60))}");
+
+                    var displayCandidates = new List<string>();
+                    try
+                    {
+                        var allElements = calcWindow.FindAll(
+                            System.Windows.Automation.TreeScope.Descendants,
+                            System.Windows.Automation.Condition.TrueCondition);
+                        foreach (System.Windows.Automation.AutomationElement element in allElements)
+                        {
+                            var elementName = element.Current.Name;
+                            var automationId = element.Current.AutomationId;
+                            if ((!string.IsNullOrWhiteSpace(automationId) && automationId.Contains("Result", StringComparison.OrdinalIgnoreCase)) ||
+                                (!string.IsNullOrWhiteSpace(elementName) && elementName.Contains("Display", StringComparison.OrdinalIgnoreCase)))
+                            {
+                                displayCandidates.Add(
+                                    $"name='{elementName}' id='{automationId}' type={element.Current.ControlType.ProgrammaticName}");
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        displayCandidates.Add($"(enumeration failed: {ex.Message})");
+                    }
+
+                    Console.WriteLine(
+                        $"::warning title=Calculator display candidates::{string.Join(" | ", displayCandidates.Take(30))}");
                 }
 
                 var closeCalc = await engine.ExecuteTextAsync("close Calculator");
@@ -298,7 +324,7 @@ internal static class Program
                     if (File.Exists(errorLog))
                     {
                         var tail = File.ReadAllText(errorLog);
-                        tail = tail.Length <= 1200 ? tail : tail[^1200..];
+                        tail = tail.Length <= 1500 ? tail : tail[..1500];
                         var escaped = tail.Replace("%", "%25").Replace("\r", "%0D").Replace("\n", "%0A");
                         Console.WriteLine($"::warning title=CIPHER app error log::{escaped}");
                     }
