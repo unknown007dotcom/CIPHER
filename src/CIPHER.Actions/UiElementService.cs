@@ -88,7 +88,7 @@ public sealed class UiElementService
         // 3. Partial name scan.
         try
         {
-            var all = scope.FindAll(TreeScope.Descendants, Condition.TrueCondition);
+            var all = scope.FindAll(TreeScope.Descendants, System.Windows.Automation.Condition.TrueCondition);
             ElementMatch? best = null;
             foreach (AutomationElement element in all)
             {
@@ -245,7 +245,7 @@ public sealed class UiElementService
 
     private static ElementMatch? FindBest(
         AutomationElement scope,
-        Condition condition,
+        System.Windows.Automation.Condition condition,
         string name,
         string matchedBy,
         int baseScore,
