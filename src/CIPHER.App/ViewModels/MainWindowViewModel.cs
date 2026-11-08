@@ -199,13 +199,13 @@ public sealed class MainWindowViewModel : ObservableObject
             AddConversation($"CIPHER: {message}");
             StatusText = result.Status switch
             {
-                TaskStatus.Succeeded => "Completed",
-                TaskStatus.SucceededUnverified => "Completed — not independently verified",
-                TaskStatus.Cancelled => "Cancelled",
-                TaskStatus.Blocked => "Blocked by policy",
+                CipherTaskStatus.Succeeded => "Completed",
+                CipherTaskStatus.SucceededUnverified => "Completed — not independently verified",
+                CipherTaskStatus.Cancelled => "Cancelled",
+                CipherTaskStatus.Blocked => "Blocked by policy",
                 _ => "Failed"
             };
-            ProgressValue = result.Status is TaskStatus.Succeeded or TaskStatus.SucceededUnverified ? 100 : 0;
+            ProgressValue = result.Status is CipherTaskStatus.Succeeded or CipherTaskStatus.SucceededUnverified ? 100 : 0;
         }
         catch (OperationCanceledException)
         {

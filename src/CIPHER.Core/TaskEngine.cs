@@ -52,7 +52,7 @@ public sealed class TaskEngine
                 command,
                 new PolicyDecision(false, false, RiskLevel.Low, parseFailure.Message),
                 parseFailure,
-                TaskStatus.Failed,
+                CipherTaskStatus.Failed,
                 stopwatch.Elapsed);
         }
 
@@ -63,7 +63,7 @@ public sealed class TaskEngine
         {
             var blocked = ActionResult.Fail(policy.Reason, "POLICY_BLOCKED");
             Publish(AssistantState.Failed, policy.Reason, command);
-            return new TaskExecutionResult(command, policy, blocked, TaskStatus.Blocked, stopwatch.Elapsed);
+            return new TaskExecutionResult(command, policy, blocked, CipherTaskStatus.Blocked, stopwatch.Elapsed);
         }
 
         if (policy.RequiresConfirmation)
@@ -76,7 +76,7 @@ public sealed class TaskEngine
                     "This action requires confirmation, but no confirmation service is available. Nothing was executed.",
                     "CONFIRMATION_UNAVAILABLE");
                 Publish(AssistantState.Failed, unavailable.Message, command);
-                return new TaskExecutionResult(command, policy, unavailable, TaskStatus.Blocked, stopwatch.Elapsed);
+                return new TaskExecutionResult(command, policy, unavailable, CipherTaskStatus.Blocked, stopwatch.Elapsed);
             }
 
             bool approved;
@@ -90,14 +90,14 @@ public sealed class TaskEngine
             {
                 var cancelled = ActionResult.Fail("The confirmation request was cancelled.", "USER_CANCELLED");
                 Publish(AssistantState.Cancelled, cancelled.Message, command);
-                return new TaskExecutionResult(command, policy, cancelled, TaskStatus.Cancelled, stopwatch.Elapsed);
+                return new TaskExecutionResult(command, policy, cancelled, CipherTaskStatus.Cancelled, stopwatch.Elapsed);
             }
 
             if (!approved)
             {
                 var cancelled = ActionResult.Fail("The user did not approve this action. Nothing was executed.", "USER_CANCELLED");
                 Publish(AssistantState.Cancelled, cancelled.Message, command);
-                return new TaskExecutionResult(command, policy, cancelled, TaskStatus.Cancelled, stopwatch.Elapsed);
+                return new TaskExecutionResult(command, policy, cancelled, CipherTaskStatus.Cancelled, stopwatch.Elapsed);
             }
         }
 
@@ -108,7 +108,7 @@ public sealed class TaskEngine
                 $"No executor is installed for intent '{command.Intent}'. Nothing was executed.",
                 "EXECUTOR_UNAVAILABLE");
             Publish(AssistantState.Failed, unavailable.Message, command);
-            return new TaskExecutionResult(command, policy, unavailable, TaskStatus.Failed, stopwatch.Elapsed);
+            return new TaskExecutionResult(command, policy, unavailable, CipherTaskStatus.Failed, stopwatch.Elapsed);
         }
 
         Publish(AssistantState.Executing, $"Executing: {GetIntentDescription(command)}", command);
@@ -124,7 +124,7 @@ public sealed class TaskEngine
         {
             var cancelled = ActionResult.Fail("The task was cancelled.", "USER_CANCELLED");
             Publish(AssistantState.Cancelled, cancelled.Message, command);
-            return new TaskExecutionResult(command, policy, cancelled, TaskStatus.Cancelled, stopwatch.Elapsed);
+            return new TaskExecutionResult(command, policy, cancelled, CipherTaskStatus.Cancelled, stopwatch.Elapsed);
         }
         catch (Exception ex)
         {
@@ -136,11 +136,11 @@ public sealed class TaskEngine
         if (!result.Success)
         {
             Publish(AssistantState.Failed, result.Message, command);
-            return new TaskExecutionResult(command, policy, result, TaskStatus.Failed, stopwatch.Elapsed);
+            return new TaskExecutionResult(command, policy, result, CipherTaskStatus.Failed, stopwatch.Elapsed);
         }
 
         Publish(AssistantState.Verifying, "Verifying the result.", command);
-        var status = result.Verified ? TaskStatus.Succeeded : TaskStatus.SucceededUnverified;
+        var status = result.Verified ? CipherTaskStatus.Succeeded : CipherTaskStatus.SucceededUnverified;
         var completionMessage = result.Verified
             ? result.Message
             : $"{result.Message} The action completed, but CIPHER could not independently verify the final state.";

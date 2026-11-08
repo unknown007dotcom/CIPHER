@@ -49,7 +49,7 @@ public enum IntentKind
 }
 
 /// <summary>Terminal and intermediate status for a user task.</summary>
-public enum TaskStatus
+public enum CipherTaskStatus
 {
     Pending,
     Running,

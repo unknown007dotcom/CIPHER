@@ -1,6 +1,5 @@
 using CIPHER.Core;
 using Xunit;
-using TaskStatus = CIPHER.Core.TaskStatus;
 
 namespace CIPHER.Tests;
 
@@ -19,7 +18,7 @@ public sealed class TaskEngineTests
 
         var result = await engine.ExecuteTextAsync("help", _context);
 
-        Assert.Equal(TaskStatus.Succeeded, result.Status);
+        Assert.Equal(CipherTaskStatus.Succeeded, result.Status);
         Assert.NotNull(result.ActionResult);
         Assert.True(result.ActionResult!.Verified);
     }
@@ -32,7 +31,7 @@ public sealed class TaskEngineTests
 
         var result = await engine.ExecuteTextAsync("do something undefined", _context);
 
-        Assert.Equal(TaskStatus.Blocked, result.Status);
+        Assert.Equal(CipherTaskStatus.Blocked, result.Status);
         Assert.Equal(0, executor.CallCount);
     }
 
@@ -44,7 +43,7 @@ public sealed class TaskEngineTests
 
         var result = await engine.ExecuteTextAsync("delete C:\\Users\\Public\\delete-me.txt", _context);
 
-        Assert.Equal(TaskStatus.Cancelled, result.Status);
+        Assert.Equal(CipherTaskStatus.Cancelled, result.Status);
         Assert.Equal(0, executor.CallCount);
     }
 
@@ -56,7 +55,7 @@ public sealed class TaskEngineTests
 
         var result = await engine.ExecuteTextAsync("delete C:\\Users\\Public\\delete-me.txt", _context);
 
-        Assert.Equal(TaskStatus.Succeeded, result.Status);
+        Assert.Equal(CipherTaskStatus.Succeeded, result.Status);
         Assert.Equal(1, executor.CallCount);
     }
 

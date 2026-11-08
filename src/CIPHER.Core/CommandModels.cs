@@ -71,5 +71,5 @@ public sealed record TaskExecutionResult(
     ParsedCommand Command,
     PolicyDecision Policy,
     ActionResult? ActionResult,
-    TaskStatus Status,
+    CipherTaskStatus Status,
     TimeSpan Duration);
