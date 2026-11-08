@@ -204,7 +204,9 @@ internal static class Program
                     requestBody = await reader.ReadToEndAsync().ConfigureAwait(false);
                 }
 
-                var content = requestBody.Contains("suggest", StringComparison.OrdinalIgnoreCase)
+                // Discriminate on the harness's user phrasing only — the system prompt
+                // itself contains the word "suggested", which must not trigger this branch.
+                var content = requestBody.Contains("suggest a command", StringComparison.OrdinalIgnoreCase)
                     ? "Here is a command you can run.\nCOMMAND: what time is it"
                     : CannedAnswer;
                 var payload = "{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":" +
