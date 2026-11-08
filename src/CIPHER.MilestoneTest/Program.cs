@@ -214,12 +214,12 @@ internal static class Program
                     var buttonNames = new List<string>();
                     try
                     {
-                        var buttons = calcWindow.FindAll(
+                        var buttonElements = calcWindow.FindAll(
                             System.Windows.Automation.TreeScope.Descendants,
                             new System.Windows.Automation.PropertyCondition(
                                 System.Windows.Automation.AutomationElement.ControlTypeProperty,
                                 System.Windows.Automation.ControlType.Button));
-                        foreach (System.Windows.Automation.AutomationElement button in buttons)
+                        foreach (System.Windows.Automation.AutomationElement button in buttonElements)
                         {
                             var buttonName = button.Current.Name;
                             if (!string.IsNullOrWhiteSpace(buttonName))
