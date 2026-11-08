@@ -7,8 +7,9 @@ interface, deterministic local commands, Windows automation, an explicit action-
 and a staged path toward voice, browser automation, external-AI delegation, persistent memory,
 and a real offline WiX MSI installer.
 
-> Current status: **Stage 1 foundation in progress.** This repository is not yet a release and
-> does not yet contain a completed `CIPHER.msi`.
+> Current status: **Stage 1 foundation implemented; Windows CI passing.** This repository is not
+> yet a release and does not yet contain a completed `CIPHER.msi`. Interactive WPF/desktop tests
+> still require a real Windows session.
 
 ## What is implemented now
 
@@ -164,6 +165,7 @@ See [SECURITY.md](SECURITY.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 - [Architecture](docs/ARCHITECTURE.md)
 - [Windows compatibility](docs/WINDOWS_COMPATIBILITY.md)
 - [Testing strategy](docs/TESTING.md)
+- [Stage 1 test report](docs/TEST_REPORT_STAGE1.md)
 - [Changelog](CHANGELOG.md)
 
 ## License

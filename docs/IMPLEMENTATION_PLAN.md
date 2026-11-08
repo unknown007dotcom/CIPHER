@@ -28,8 +28,8 @@ Deliverables:
 - [x] Add Windows CI for .NET 10 restore/build/test.
 - [x] Add root batch scripts with logging, exit codes, and fail-closed packaging gates.
 - [x] Document compatibility, dependency risks, and installer constraints.
-- [ ] Pass Windows CI.
-- [ ] Run the WPF shell on a Windows machine and record the result.
+- [x] Pass Windows CI (GitHub Actions run 42480109478, 2026-11-08).
+- [ ] Run the WPF shell interactively on a Windows machine and record the result.
 
 Exit gate: solution builds on Windows; tests pass; known limitations are documented.
 

@@ -85,18 +85,21 @@ jobs:
         run: |
           call setup-dev.bat
           if errorlevel 2 exit /b 1
+          exit /b 0
 
       - name: Validate build.bat
         shell: cmd
         run: |
           call build.bat Release
           if errorlevel 1 exit /b 1
+          exit /b 0
 
       - name: Validate test.bat
         shell: cmd
         run: |
           call test.bat Release
           if errorlevel 1 exit /b 1
+          exit /b 0
 
       - name: Validate package.bat gate
         shell: cmd
