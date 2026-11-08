@@ -5,6 +5,7 @@ using System.Windows.Media;
 using CIPHER.Actions;
 using CIPHER.Browser;
 using CIPHER.Core;
+using CIPHER.Voice;
 
 namespace CIPHER.App.ViewModels;
 
@@ -15,6 +16,15 @@ public sealed class MainWindowViewModel : ObservableObject
     private readonly BrowserActionExecutor _browserExecutor;
     private AssistantSettings _settings = new();
     private CancellationTokenSource? _cancellationTokenSource;
+
+    private VoskMicrophoneListener? _voiceListener;
+    private VoiceSession? _voiceSession;
+    private EspeakSpeechSynthesizer? _speechSynthesizer;
+    private bool _isListening;
+    private bool _continuousListening;
+    private bool _speechOutputEnabled;
+    private bool _wakeListeningEnabled;
+    private bool _speechUnavailableReported;
 
     private string _input = string.Empty;
     private string _statusText = "Ready";
@@ -51,7 +61,7 @@ public sealed class MainWindowViewModel : ObservableObject
         };
 
         ExecuteCommand = new AsyncRelayCommand(
-            _ => ExecuteAsync(),
+            _ => ExecuteFromInputAsync(),
             _ => !IsBusy && !string.IsNullOrWhiteSpace(Input),
             ex => AddConversation($"CIPHER: An unexpected error occurred: {ex.Message}"));
 
@@ -66,13 +76,10 @@ public sealed class MainWindowViewModel : ObservableObject
                 IsExpanded = true;
             }
         });
-        VoiceCommand = new RelayCommand(_ =>
-        {
-            StatusText = "Voice not configured";
-            ProgressText = "Offline voice recognition is scheduled for Stage 6.";
-            AddConversation(
-                "CIPHER: Voice input is not enabled in this build yet. Offline Vosk recognition is planned for Stage 6; typed commands are available now.");
-        });
+        VoiceCommand = new AsyncRelayCommand(
+            _ => TogglePushToTalkAsync(),
+            _ => true,
+            ex => AddConversation($"CIPHER: Voice input failed: {ex.Message}"));
         SaveSettingsCommand = new AsyncRelayCommand(
             _ => SaveSettingsAsync(),
             _ => !IsBusy,
@@ -149,6 +156,36 @@ public sealed class MainWindowViewModel : ObservableObject
         private set => SetProperty(ref _progressValue, value);
     }
 
+    /// <summary>True while the microphone is open (push-to-talk or wake listening).</summary>
+    public bool IsListening
+    {
+        get => _isListening;
+        private set => SetProperty(ref _isListening, value);
+    }
+
+    /// <summary>Speak command results aloud through eSpeak NG (persisted setting).</summary>
+    public bool SpeechOutputEnabled
+    {
+        get => _speechOutputEnabled;
+        set => SetProperty(ref _speechOutputEnabled, value);
+    }
+
+    /// <summary>
+    /// Continuous wake-phrase listening. Deliberately a runtime-only toggle: it is never
+    /// auto-started at launch, even though the checkbox state is simple to re-enable.
+    /// </summary>
+    public bool WakeListeningEnabled
+    {
+        get => _wakeListeningEnabled;
+        set
+        {
+            if (SetProperty(ref _wakeListeningEnabled, value))
+            {
+                _ = OnWakeListeningToggledAsync(value);
+            }
+        }
+    }
+
     public bool AlwaysOnTop
     {
         get => _alwaysOnTop;
@@ -166,6 +203,7 @@ public sealed class MainWindowViewModel : ObservableObject
         _settings = await _settingsStore.LoadAsync().ConfigureAwait(true);
         AlwaysOnTop = _settings.AlwaysOnTop;
         WakePhrase = _settings.WakePhrase;
+        SpeechOutputEnabled = _settings.SpeechOutputEnabled;
     }
 
     public void RequestCancellation()
@@ -173,9 +211,22 @@ public sealed class MainWindowViewModel : ObservableObject
         _cancellationTokenSource?.Cancel();
     }
 
-    /// <summary>Closes the lazily started browser session, if one was ever opened.</summary>
+    /// <summary>Stops voice capture/speech and closes the lazily started browser session.</summary>
     public async Task ShutdownAsync()
     {
+        try
+        {
+            StopListening();
+            _voiceListener?.Dispose();
+            _voiceListener = null;
+            _speechSynthesizer?.Dispose();
+            _speechSynthesizer = null;
+        }
+        catch (Exception)
+        {
+            // Voice shutdown must never block application exit.
+        }
+
         try
         {
             await _browserExecutor.DisposeAsync().ConfigureAwait(false);
@@ -260,6 +311,288 @@ public sealed class MainWindowViewModel : ObservableObject
         WakePhrase = _settings.WakePhrase;
         AddConversation("CIPHER: Settings saved locally.");
         ProgressText = "Settings saved to the local CIPHER profile.";
+    }
+
+    // ---- Offline voice (Stage 6) ----
+
+    private async Task TogglePushToTalkAsync()
+    {
+        if (IsListening)
+        {
+            // Pressing the microphone button while listening stops capture; any final
+            // transcript flushed from the recognizer is still processed first.
+            StopListening(processFlushed: true);
+            return;
+        }
+
+        _continuousListening = false;
+        var started = await StartListeningAsync().ConfigureAwait(true);
+        if (started)
+        {
+            // Push-to-talk: the next utterance is the command, no wake phrase required.
+            _voiceSession?.Prime(DateTimeOffset.Now);
+            StatusText = "Listening";
+            ProgressText = "Listening… speak a command, then press the microphone button again to stop.";
+        }
+    }
+
+    private async Task OnWakeListeningToggledAsync(bool enabled)
+    {
+        if (enabled)
+        {
+            _continuousListening = true;
+            var started = await StartListeningAsync().ConfigureAwait(true);
+            if (started)
+            {
+                StatusText = "Listening for wake phrase";
+                ProgressText = $"Say '{WakePhrase}' followed by a command. The microphone stays open until you turn this off.";
+                AddConversation($"CIPHER: Wake-phrase listening is on. Say '{WakePhrase}' and then a command.");
+            }
+            else
+            {
+                _continuousListening = false;
+                _wakeListeningEnabled = false;
+                OnPropertyChanged(nameof(WakeListeningEnabled));
+            }
+        }
+        else
+        {
+            _continuousListening = false;
+            StopListening(processFlushed: false);
+            if (!IsBusy)
+            {
+                StatusText = "Ready";
+            }
+
+            ProgressText = "Wake-phrase listening is off. The microphone is closed.";
+        }
+    }
+
+    private async Task<bool> StartListeningAsync()
+    {
+        if (IsListening)
+        {
+            return true;
+        }
+
+        var listener = await EnsureVoiceListenerAsync().ConfigureAwait(true);
+        if (listener is null)
+        {
+            return false;
+        }
+
+        try
+        {
+            _speechSynthesizer?.StopCurrent();
+            _voiceSession = new VoiceSession(new WakeWordDetector(
+                string.IsNullOrWhiteSpace(WakePhrase) ? "Hey CIPHER" : WakePhrase.Trim()));
+            listener.Start();
+            IsListening = true;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            StatusText = "Microphone unavailable";
+            ProgressText = "The microphone could not be opened.";
+            AddConversation($"CIPHER: The microphone could not be started: {ex.Message}");
+            return false;
+        }
+    }
+
+    private void StopListening(bool processFlushed)
+    {
+        if (_voiceListener is null || !IsListening)
+        {
+            return;
+        }
+
+        var flushed = _voiceListener.Stop();
+        IsListening = false;
+        if (!IsBusy)
+        {
+            StatusText = "Ready";
+        }
+
+        if (processFlushed && !string.IsNullOrWhiteSpace(flushed))
+        {
+            HandleVoiceTranscript(flushed);
+        }
+    }
+
+    private async Task<VoskMicrophoneListener?> EnsureVoiceListenerAsync()
+    {
+        if (_voiceListener is not null)
+        {
+            return _voiceListener;
+        }
+
+        var modelPath = VoskModelLocator.Resolve(_settings.VoiceModelPath);
+        if (modelPath is null)
+        {
+            StatusText = "Voice model not found";
+            ProgressText = "The offline speech model is missing, so the microphone stays closed.";
+            AddConversation(
+                $"CIPHER: Voice input needs the offline Vosk model '{VoskModelLocator.SmallEnglishModelName}'. " +
+                $"Unzip it to {_settings.VoiceModelPath} (or into a models folder next to CIPHER), then try again. " +
+                "Recognition runs fully on this PC; no audio is uploaded anywhere.");
+            return null;
+        }
+
+        try
+        {
+            StatusText = "Loading voice model";
+            ProgressText = "Loading the offline speech model…";
+            var listener = await Task.Run(() =>
+            {
+                var recognizer = new VoskSpeechRecognizer(modelPath);
+                return new VoskMicrophoneListener(recognizer);
+            }).ConfigureAwait(true);
+
+            listener.PartialTextAvailable += (_, text) => PostToUi(() =>
+            {
+                if (IsListening)
+                {
+                    ProgressText = $"Listening… {text}";
+                }
+            });
+            listener.FinalTextAvailable += (_, text) => PostToUi(() => HandleVoiceTranscript(text));
+            listener.ListeningError += (_, ex) => PostToUi(() =>
+            {
+                AddConversation($"CIPHER: Voice listening stopped: {ex.Message}");
+                StopListening(processFlushed: false);
+            });
+
+            _voiceListener = listener;
+            return listener;
+        }
+        catch (Exception ex)
+        {
+            StatusText = "Voice unavailable";
+            ProgressText = "The offline voice engine could not start.";
+            AddConversation($"CIPHER: The offline voice engine could not start: {ex.Message}");
+            return null;
+        }
+    }
+
+    private void HandleVoiceTranscript(string text)
+    {
+        if (_voiceSession is null || string.IsNullOrWhiteSpace(text))
+        {
+            return;
+        }
+
+        var result = _voiceSession.HandleFinalTranscript(text, DateTimeOffset.Now);
+        switch (result.Outcome)
+        {
+            case VoiceTranscriptOutcome.CommandReady:
+                AddConversation($"Heard: {text}");
+                if (!_continuousListening)
+                {
+                    StopListening(processFlushed: false);
+                }
+
+                if (IsBusy)
+                {
+                    ProgressText = "Still working on the previous command; the spoken command was not started.";
+                    AddConversation("CIPHER: I am still busy with the previous command, so I did not start the spoken one.");
+                    return;
+                }
+
+                _ = ExecuteTextAsync(result.CommandText);
+                break;
+
+            case VoiceTranscriptOutcome.WakePhraseHeard:
+                StatusText = "Wake phrase heard";
+                ProgressText = $"Heard '{WakePhrase}'. Say your command now.";
+                break;
+
+            default:
+                if (_continuousListening)
+                {
+                    ProgressText = $"Listening for '{WakePhrase}'…";
+                }
+
+                break;
+        }
+    }
+
+    private void SpeakResultMessage(string message)
+    {
+        if (!SpeechOutputEnabled || string.IsNullOrWhiteSpace(message))
+        {
+            return;
+        }
+
+        var synthesizer = EnsureSpeechSynthesizer();
+        if (synthesizer is null)
+        {
+            if (!_speechUnavailableReported)
+            {
+                _speechUnavailableReported = true;
+                AddConversation(
+                    "CIPHER: Speech output is enabled but eSpeak NG (espeak-ng.exe) was not found. " +
+                    "Install eSpeak NG or place espeak-ng.exe in a tools\\espeak-ng folder next to CIPHER; " +
+                    "results stay text-only until then.");
+            }
+
+            return;
+        }
+
+        var spoken = message.Trim();
+        if (spoken.Length > 180)
+        {
+            spoken = spoken[..180].TrimEnd();
+        }
+
+        _ = SpeakSafelyAsync(synthesizer, spoken);
+    }
+
+    private EspeakSpeechSynthesizer? EnsureSpeechSynthesizer()
+    {
+        if (_speechSynthesizer is not null)
+        {
+            return _speechSynthesizer;
+        }
+
+        var voice = string.IsNullOrWhiteSpace(_settings.SpeechVoice) ||
+                    string.Equals(_settings.SpeechVoice, "Default", StringComparison.OrdinalIgnoreCase)
+            ? _settings.VoiceLanguage.ToLowerInvariant()
+            : _settings.SpeechVoice;
+        var synthesizer = new EspeakSpeechSynthesizer(
+            string.IsNullOrWhiteSpace(_settings.EspeakExecutablePath) ? null : _settings.EspeakExecutablePath,
+            voice);
+        if (!synthesizer.IsAvailable)
+        {
+            synthesizer.Dispose();
+            return null;
+        }
+
+        _speechSynthesizer = synthesizer;
+        return synthesizer;
+    }
+
+    private async Task SpeakSafelyAsync(EspeakSpeechSynthesizer synthesizer, string text)
+    {
+        try
+        {
+            await synthesizer.SpeakAsync(text).ConfigureAwait(false);
+        }
+        catch (Exception)
+        {
+            // Speech output must never break the command flow.
+        }
+    }
+
+    private void PostToUi(Action action)
+    {
+        var dispatcher = global::System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher is null || dispatcher.CheckAccess())
+        {
+            action();
+            return;
+        }
+
+        dispatcher.BeginInvoke(action);
     }
 
     private void OnEngineEvent(object? sender, AssistantEvent assistantEvent)

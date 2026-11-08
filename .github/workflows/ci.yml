@@ -130,6 +130,64 @@ jobs:
         timeout-minutes: 5
         run: ./src/CIPHER.BrowserTest/bin/Release/net10.0/CIPHER.BrowserTest.exe
 
+      - name: Download Vosk test model (Stage 6)
+        continue-on-error: true
+        timeout-minutes: 5
+        shell: pwsh
+        run: |
+          $modelRoot = Join-Path $env:RUNNER_TEMP "vosk-model"
+          $zipPath = Join-Path $env:RUNNER_TEMP "vosk-model-small-en-us-0.15.zip"
+          Invoke-WebRequest -Uri "https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip" -OutFile $zipPath
+          Expand-Archive -LiteralPath $zipPath -DestinationPath $modelRoot -Force
+          $modelDir = Join-Path $modelRoot "vosk-model-small-en-us-0.15"
+          if (-not (Test-Path (Join-Path $modelDir "conf\model.conf"))) {
+            throw "Vosk model download did not produce a usable model directory."
+          }
+          "CIPHER_VOSK_MODEL=$modelDir" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Write-Host "Vosk test model ready at $modelDir"
+
+      - name: Generate wake-phrase test audio (Stage 6)
+        continue-on-error: true
+        timeout-minutes: 3
+        shell: powershell
+        run: |
+          Add-Type -AssemblyName System.Speech
+          $format = New-Object System.Speech.AudioFormat.SpeechAudioFormatInfo(16000, [System.Speech.AudioFormat.AudioBitsPerSample]::Sixteen, [System.Speech.AudioFormat.AudioChannel]::Mono)
+          $synth = New-Object System.Speech.Synthesis.SpeechSynthesizer
+          try {
+            $wavPath = Join-Path $env:RUNNER_TEMP "cipher-wake-test.wav"
+            $synth.SetOutputToWaveFile($wavPath, $format)
+            $synth.Speak("Hey Cipher, what time is it?")
+            "CIPHER_VOICE_WAV=$wavPath" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+            Write-Host "Generated test speech at $wavPath"
+          } finally {
+            $synth.Dispose()
+          }
+
+      - name: Download eSpeak NG (Stage 6)
+        continue-on-error: true
+        timeout-minutes: 5
+        shell: pwsh
+        run: |
+          $headers = @{ "User-Agent" = "CIPHER-CI" }
+          $release = Invoke-RestMethod -Uri "https://api.github.com/repos/espeak-ng/espeak-ng/releases/latest" -Headers $headers
+          $asset = $release.assets | Where-Object { $_.name -like "*.msi" } | Select-Object -First 1
+          if (-not $asset) { throw "No eSpeak NG MSI asset found in the latest release." }
+          $msiPath = Join-Path $env:RUNNER_TEMP "espeak-ng.msi"
+          Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $msiPath -Headers $headers
+          $extractDir = Join-Path $env:RUNNER_TEMP "espeak-ng"
+          $proc = Start-Process msiexec.exe -ArgumentList "/a `"$msiPath`" /qn TARGETDIR=`"$extractDir`"" -Wait -PassThru
+          if ($proc.ExitCode -ne 0) { throw "msiexec administrative install failed with exit code $($proc.ExitCode)." }
+          $exe = Get-ChildItem -Path $extractDir -Recurse -Filter "espeak-ng.exe" | Select-Object -First 1
+          if (-not $exe) { throw "espeak-ng.exe was not found in the extracted MSI." }
+          "CIPHER_ESPEAK_EXE=$($exe.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Write-Host "eSpeak NG ready at $($exe.FullName)"
+
+      - name: Run Stage 6 voice harness (experimental, generated audio)
+        continue-on-error: true
+        timeout-minutes: 5
+        run: ./src/CIPHER.VoiceTest/bin/Release/net10.0-windows/CIPHER.VoiceTest.exe
+
       - name: Publish Windows x64 app (framework-dependent validation build)
         run: >-
           dotnet publish src/CIPHER.App/CIPHER.App.csproj

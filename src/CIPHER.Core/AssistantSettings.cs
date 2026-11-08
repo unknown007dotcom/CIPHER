@@ -11,6 +11,15 @@ public sealed record AssistantSettings
     public string SpeechVoice { get; init; } = "Default";
     public string ResultsDirectory { get; init; } = CreateDefaultResultsDirectory();
 
+    /// <summary>Directory containing the offline Vosk speech model (Stage 6).</summary>
+    public string VoiceModelPath { get; init; } = CreateDefaultVoiceModelPath();
+
+    /// <summary>Path to espeak-ng.exe; empty means auto-detect (app folder, Program Files, PATH).</summary>
+    public string EspeakExecutablePath { get; init; } = string.Empty;
+
+    /// <summary>Speak command results aloud with eSpeak NG when available.</summary>
+    public bool SpeechOutputEnabled { get; init; }
+
     public AssistantSettings Normalize()
     {
         return this with
@@ -20,8 +29,22 @@ public sealed record AssistantSettings
             SpeechVoice = string.IsNullOrWhiteSpace(SpeechVoice) ? "Default" : SpeechVoice.Trim(),
             ResultsDirectory = string.IsNullOrWhiteSpace(ResultsDirectory)
                 ? CreateDefaultResultsDirectory()
-                : ResultsDirectory.Trim()
+                : ResultsDirectory.Trim(),
+            VoiceModelPath = string.IsNullOrWhiteSpace(VoiceModelPath)
+                ? CreateDefaultVoiceModelPath()
+                : VoiceModelPath.Trim(),
+            EspeakExecutablePath = EspeakExecutablePath?.Trim() ?? string.Empty
         };
+    }
+
+    private static string CreateDefaultVoiceModelPath()
+    {
+        var localApplicationData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        var root = string.IsNullOrWhiteSpace(localApplicationData)
+            ? Path.GetTempPath()
+            : localApplicationData;
+
+        return Path.Combine(root, "CIPHER", "models", "vosk-model-small-en-us-0.15");
     }
 
     private static string CreateDefaultResultsDirectory()

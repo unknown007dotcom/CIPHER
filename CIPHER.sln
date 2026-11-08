@@ -17,6 +17,10 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CIPHER.Browser", "src\CIPHE
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CIPHER.BrowserTest", "src\CIPHER.BrowserTest\CIPHER.BrowserTest.csproj", "{7400550B-574A-40EE-BD6E-A70C151D7F40}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CIPHER.Voice", "src\CIPHER.Voice\CIPHER.Voice.csproj", "{26FEA1CA-6D0B-49FF-B21A-BEE40475F172}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CIPHER.VoiceTest", "src\CIPHER.VoiceTest\CIPHER.VoiceTest.csproj", "{0012500D-CB59-416C-B7C3-B09FEE455B7B}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -51,6 +55,14 @@ Global
 		{7400550B-574A-40EE-BD6E-A70C151D7F40}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{7400550B-574A-40EE-BD6E-A70C151D7F40}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{7400550B-574A-40EE-BD6E-A70C151D7F40}.Release|Any CPU.Build.0 = Release|Any CPU
+		{26FEA1CA-6D0B-49FF-B21A-BEE40475F172}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{26FEA1CA-6D0B-49FF-B21A-BEE40475F172}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{26FEA1CA-6D0B-49FF-B21A-BEE40475F172}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{26FEA1CA-6D0B-49FF-B21A-BEE40475F172}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0012500D-CB59-416C-B7C3-B09FEE455B7B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0012500D-CB59-416C-B7C3-B09FEE455B7B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0012500D-CB59-416C-B7C3-B09FEE455B7B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0012500D-CB59-416C-B7C3-B09FEE455B7B}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

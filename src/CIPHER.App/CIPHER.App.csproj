@@ -18,6 +18,7 @@
     <ProjectReference Include="..\CIPHER.Core\CIPHER.Core.csproj" />
     <ProjectReference Include="..\CIPHER.Actions\CIPHER.Actions.csproj" />
     <ProjectReference Include="..\CIPHER.Browser\CIPHER.Browser.csproj" />
+    <ProjectReference Include="..\CIPHER.Voice\CIPHER.Voice.csproj" />
   </ItemGroup>
 
 </Project>
