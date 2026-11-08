@@ -7,9 +7,10 @@ interface, deterministic local commands, Windows automation, an explicit action-
 and a staged path toward voice, browser automation, external-AI delegation, persistent memory,
 and a real offline WiX MSI installer.
 
-> Current status: **Stage 1 foundation implemented; Windows CI passing.** This repository is not
-> yet a release and does not yet contain a completed `CIPHER.msi`. Interactive WPF/desktop tests
-> still require a real Windows session.
+> Current status: **Stages 1–3 in progress; Windows CI passing, including the automated
+> Notepad milestone harness.** This repository is not yet a release and does not yet contain a
+> completed `CIPHER.msi`. Interactive WPF/desktop tests on a physical Windows session are still
+> required before release.
 
 ## What is implemented now
 
@@ -21,7 +22,9 @@ and a real offline WiX MSI installer.
   - conversation history;
   - progress/status text;
   - cancellation;
-  - settings panel for wake phrase and always-on-top behavior.
+  - settings panel for wake phrase and always-on-top behavior;
+  - system tray icon with show/hide/exit;
+  - Ctrl+Alt+C global show/hide hotkey (with a clear message if another app owns it).
 - Offline deterministic command parser. It does not require an LLM, API key, cloud account, or
   internet connection.
 - Action policy with fail-closed behavior:
@@ -34,6 +37,9 @@ and a real offline WiX MSI installer.
   - request graceful application close without force-killing;
   - find and focus windows through UI Automation;
   - type Unicode text and send keyboard shortcuts through Win32 `SendInput`;
+  - read editor text back through UI Automation and verify expected content
+    (`read text in Notepad`, `verify Notepad contains ...`); typing reports itself as
+    verified only when the typed text is observed afterwards;
   - create/list/copy/move/rename files and folders;
   - move deleted items to a reversible local quarantine instead of permanently deleting them.
 - Built-in informational commands: help, time, date, and system information.
@@ -69,6 +75,8 @@ close Notepad
 switch to Notepad
 type Hello from CIPHER
 press Ctrl+S
+read text in Notepad
+verify Notepad contains Hello from CIPHER
 create folder C:\Temp\CIPHER-Test
 create folder in C:\Temp called CIPHER-Test
 create file C:\Temp\cipher-note.txt
@@ -142,6 +150,7 @@ CIPHER/
     CIPHER.Core/       Offline parser, policy, task engine, settings
     CIPHER.Actions/    Windows process/UI Automation/SendInput/file actions
     CIPHER.Tests/      xUnit tests for core behavior
+    CIPHER.MilestoneTest/  Interactive Notepad milestone harness (Stage 3)
   docs/
   dependencies/       Offline dependency staging instructions (large files not in Git)
   .github/workflows/  Windows build/test pipeline
@@ -166,6 +175,7 @@ See [SECURITY.md](SECURITY.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 - [Windows compatibility](docs/WINDOWS_COMPATIBILITY.md)
 - [Testing strategy](docs/TESTING.md)
 - [Stage 1 test report](docs/TEST_REPORT_STAGE1.md)
+- [Stage 3 Notepad milestone report](docs/TEST_REPORT_STAGE3.md)
 - [Changelog](CHANGELOG.md)
 
 ## License

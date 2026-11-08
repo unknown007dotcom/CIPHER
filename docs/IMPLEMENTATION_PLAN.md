@@ -40,8 +40,8 @@ Implemented foundation:
 - [x] Floating borderless top-centered window.
 - [x] Expand/collapse, status orb, conversation, progress, cancel, and settings panel.
 - [x] Click-to-focus command input and Enter-to-send.
-- [ ] Global show/hide hotkey.
-- [ ] Tray icon and restore behavior.
+- [x] Global show/hide hotkey (Ctrl+Alt+C, with a clear fallback message if registration fails).
+- [x] Tray icon with show/hide/exit and double-click restore.
 - [ ] Multi-monitor/DPI placement tests.
 - [ ] Low-resource idle measurement.
 
@@ -56,8 +56,11 @@ Implemented foundation:
 - [x] UI Automation top-level window discovery/focus.
 - [x] SendInput Unicode typing and shortcuts.
 - [x] File/folder create, list, copy, move, rename, and reversible delete.
+- [x] UI Automation editor read-back (`read text in <window>`) and content verification
+  (`verify <window> contains <text>`); typing is reported as verified only when the typed
+  text is observed in the editor afterwards.
 
-Required milestone test on a real interactive Windows desktop:
+Milestone test (automated by `src/CIPHER.MilestoneTest`):
 
 1. Launch Notepad.
 2. Identify its editor through UI Automation.
@@ -65,6 +68,11 @@ Required milestone test on a real interactive Windows desktop:
 4. Switch to another window.
 5. Return to Notepad.
 6. Read the editor value through UI Automation and verify the exact sentence remains.
+
+- [x] Milestone harness passes end-to-end in GitHub-hosted Windows CI
+  (run 42481087880; see `docs/TEST_REPORT_STAGE3.md`). Note: that is a non-interactive
+  session-0 desktop.
+- [ ] Repeat the milestone on interactive Windows 10 and Windows 11 desktops before release.
 
 Exit gate: milestone passes repeatedly without a generative LLM; failures report the failed step.
 

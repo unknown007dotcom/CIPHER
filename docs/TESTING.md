@@ -13,6 +13,8 @@ Current xUnit coverage:
 
 - wake-phrase detection and removal;
 - open/type/press/help/time/date/system-info parsing;
+- read/verify window-text command parsing;
+- whitespace/case-tolerant text matching used for editor read-back verification;
 - folder and move command parsing;
 - unknown-command suggestions;
 - delete confirmation requirements;
@@ -54,17 +56,22 @@ run on Windows before their stages are marked complete:
 
 ### Stage 3 Notepad milestone
 
-1. Say or type: `open Notepad`.
-2. Confirm Notepad is running and focused.
-3. Type: `type CIPHER milestone test 2026`.
-4. Switch to another window.
-5. Return with `switch to Notepad`.
-6. Verify through UI Automation that the editor still contains the exact sentence.
-7. Close Notepad gracefully and discard test data when prompted by Windows.
+This milestone is automated by `src/CIPHER.MilestoneTest` and runs in GitHub-hosted Windows
+CI. On 2026-11-08 it passed end-to-end in the runner's non-interactive session
+(run 42481087880; see `docs/TEST_REPORT_STAGE3.md`). The same harness should be run on an
+interactive Windows desktop before release:
 
-The UI Automation read-back verification step is part of Stage 3 hardening; the current executor
-types through SendInput and reports typing as unverified until that read-back is implemented and
-tested.
+```powershell
+dotnet build CIPHER.sln -c Release
+.\src\CIPHER.MilestoneTest\bin\Release\net10.0-windows\CIPHER.MilestoneTest.exe
+```
+
+It launches Notepad, identifies the editor through UI Automation, types
+`CIPHER milestone verification sentence.`, switches to File Explorer, returns to Notepad, and
+verifies the sentence through UI Automation read-back plus the
+`verify Notepad contains ...` command. Typing also reports itself as verified only when the
+typed text is observed in the editor afterwards. The harness refuses to run if Notepad already
+contains user text.
 
 ### Safety tests
 

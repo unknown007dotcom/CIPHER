@@ -18,7 +18,6 @@ public partial class MainWindow : Window
     private NotifyIcon? _trayIcon;
     private HwndSource? _hwndSource;
     private bool _hotkeyRegistered;
-    private bool _isExiting;
 
     public MainWindow()
     {
@@ -66,11 +65,7 @@ public partial class MainWindow : Window
     {
         var showItem = new ToolStripMenuItem("Show CIPHER", null, (_, _) => ShowCipher());
         var hideItem = new ToolStripMenuItem("Hide CIPHER", null, (_, _) => Hide());
-        var exitItem = new ToolStripMenuItem("Exit CIPHER", null, (_, _) =>
-        {
-            _isExiting = true;
-            Close();
-        });
+        var exitItem = new ToolStripMenuItem("Exit CIPHER", null, (_, _) => Close());
 
         _trayIcon = new NotifyIcon
         {
@@ -182,7 +177,6 @@ public partial class MainWindow : Window
 
     private void CloseButton_Click(object sender, RoutedEventArgs e)
     {
-        _isExiting = true;
         Close();
     }
 

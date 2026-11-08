@@ -22,6 +22,15 @@ once the first tested release exists.
 - Developer batch scripts and dependency/package gates.
 - Architecture, compatibility, security, testing, and implementation-plan documentation.
 
+- UI Automation editor read-back and verification commands
+  (`read text in <window>`, `verify <window> contains <text>`), with typing reported as
+  verified only when the typed text is observed in the editor.
+- Automated Stage 3 Notepad milestone harness (`CIPHER.MilestoneTest`) covering launch,
+  editor identification, typing, window switching, return, and read-back verification;
+  it passes in GitHub-hosted Windows CI (non-interactive session).
+- System tray icon with show/hide/exit and a Ctrl+Alt+C global show/hide hotkey.
+- Additional parser, policy, and text-matching tests (30 automated test cases total).
+
 ### Not yet released
 
 - Voice recognition/synthesis, SQLite memory, browser automation, external AI delegation,
