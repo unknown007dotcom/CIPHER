@@ -46,6 +46,7 @@ public enum IntentKind
     BrowserClickElement,
     BrowserFillField,
     BrowserDownload,
+    AskExternalAi,
     OpenPath,
     CreateFolder,
     CreateFile,

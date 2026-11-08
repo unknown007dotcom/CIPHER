@@ -324,6 +324,20 @@ public sealed class DeterministicCommandParser : ICommandParser
                 confidence: 0.95);
         }
 
+        match = Match(commandText, "^(?:ask\\s+(?:the\\s+)?ai(?:\\s+to)?|delegate(?:\\s+to\\s+(?:the\\s+)?ai)?)[:,]?\\s+(?<prompt>.+)$");
+        if (match.Success)
+        {
+            var prompt = match.Groups["prompt"].Value.Trim();
+            return Create(
+                original,
+                commandText,
+                IntentKind.AskExternalAi,
+                target: prompt,
+                risk: RiskLevel.High,
+                summary: $"Ask external AI: {TruncateForSummary(prompt)}",
+                confidence: 0.95);
+        }
+
         match = Match(commandText, "^(?:open website|browse to|go to|navigate to|visit)\\s+(?<target>.+)$");
         if (match.Success)
         {
@@ -467,6 +481,12 @@ public sealed class DeterministicCommandParser : ICommandParser
     private static bool IsMatch(string input, string pattern)
     {
         return Regex.IsMatch(input, pattern, Options);
+    }
+
+    private static string TruncateForSummary(string value, int maxLength = 60)
+    {
+        var trimmed = value.Trim();
+        return trimmed.Length <= maxLength ? trimmed : trimmed[..maxLength].TrimEnd() + "…";
     }
 
     private static string CleanTarget(string value)

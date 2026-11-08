@@ -22,6 +22,9 @@ public sealed class BuiltInActionExecutor : IActionExecutor
                 "press <keys>, read text in <window>, verify <window> contains <text>, " +
                 "click <name> button in <window>, type <text> into <field> in <window>, " +
                 "open website <url>, read page text, browser click <name>, browser fill <field> with <text>, browser download <link>, " +
+                "ask ai <question> (external AI delegation, only when enabled in Settings), " +
+                "alias <name> = <command>, list aliases, forget alias <name>, " +
+                "remember app <name> at <path>, list apps, " +
                 "create folder <path>, create file <path>, list files in <path>, " +
                 "copy <source> to <destination>, move <source> to <destination>, " +
                 "rename <source> to <destination>, delete <path>, time, date, and system info.",

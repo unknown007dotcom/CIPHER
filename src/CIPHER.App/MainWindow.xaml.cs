@@ -105,6 +105,14 @@ public partial class MainWindow : Window
         }
     }
 
+    private async void SaveApiKey_Click(object sender, RoutedEventArgs e)
+    {
+        // The password box content goes straight to the DPAPI store and is cleared
+        // immediately; it is never bound, journaled, or logged.
+        await _viewModel.SaveApiKeyAsync(AiApiKeyBox.Password);
+        AiApiKeyBox.Clear();
+    }
+
     private async void Window_Loaded(object sender, RoutedEventArgs e)
     {
         PositionAtTopCenter();

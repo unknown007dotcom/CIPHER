@@ -5,6 +5,7 @@ using System.Windows.Media;
 using CIPHER.Actions;
 using CIPHER.Browser;
 using CIPHER.Core;
+using CIPHER.Delegation;
 using CIPHER.Memory;
 using CIPHER.Voice;
 
@@ -20,6 +21,12 @@ public sealed class MainWindowViewModel : ObservableObject
 
     private SqliteMemoryStore? _memoryStore;
     private MemoryCommandHandler? _memoryCommands;
+
+    private readonly DpapiApiKeyStore _apiKeyStore = DpapiApiKeyStore.CreateDefault();
+    private bool _aiDelegationEnabled;
+    private string _aiBaseUrl = "https://api.openai.com/v1";
+    private string _aiModel = "gpt-4o-mini";
+    private string _apiKeyStatus = "No API key saved yet.";
 
     private VoskMicrophoneListener? _voiceListener;
     private VoiceSession? _voiceSession;
@@ -61,7 +68,13 @@ public sealed class MainWindowViewModel : ObservableObject
                 appPathResolver: (name, cancellationToken) => _memoryStore is null
                     ? Task.FromResult<string?>(null)
                     : _memoryStore.GetAppPathAsync(name, cancellationToken)),
-            _browserExecutor
+            _browserExecutor,
+            new DelegationActionExecutor(() => new AiDelegationOptions(
+                _settings.AiDelegationEnabled,
+                _settings.AiBaseUrl,
+                _settings.AiModel,
+                LoadApiKeyOrNull(),
+                _settings.ResultsDirectory))
         };
 
         Conversation = new ObservableCollection<string>
@@ -93,6 +106,12 @@ public sealed class MainWindowViewModel : ObservableObject
             _ => SaveSettingsAsync(),
             _ => !IsBusy,
             ex => AddConversation($"CIPHER: Settings could not be saved: {ex.Message}"));
+        ClearApiKeyCommand = new RelayCommand(_ =>
+        {
+            _apiKeyStore.Delete();
+            RefreshApiKeyStatus();
+            AddConversation("CIPHER: The saved API key was deleted from this PC.");
+        });
     }
 
     public ObservableCollection<string> Conversation { get; }
@@ -104,6 +123,7 @@ public sealed class MainWindowViewModel : ObservableObject
     public ICommand ToggleSettingsCommand { get; }
     public ICommand VoiceCommand { get; }
     public ICommand SaveSettingsCommand { get; }
+    public ICommand ClearApiKeyCommand { get; }
 
     public string Input
     {
@@ -207,12 +227,42 @@ public sealed class MainWindowViewModel : ObservableObject
         set => SetProperty(ref _wakePhrase, value ?? string.Empty);
     }
 
+    /// <summary>Master switch for Stage 8 external AI delegation (persisted; off by default).</summary>
+    public bool AiDelegationEnabled
+    {
+        get => _aiDelegationEnabled;
+        set => SetProperty(ref _aiDelegationEnabled, value);
+    }
+
+    public string AiBaseUrl
+    {
+        get => _aiBaseUrl;
+        set => SetProperty(ref _aiBaseUrl, value ?? string.Empty);
+    }
+
+    public string AiModel
+    {
+        get => _aiModel;
+        set => SetProperty(ref _aiModel, value ?? string.Empty);
+    }
+
+    /// <summary>Whether a DPAPI-protected API key exists. The key itself is never displayed.</summary>
+    public string ApiKeyStatus
+    {
+        get => _apiKeyStatus;
+        private set => SetProperty(ref _apiKeyStatus, value);
+    }
+
     public async Task InitializeAsync()
     {
         _settings = await _settingsStore.LoadAsync().ConfigureAwait(true);
         AlwaysOnTop = _settings.AlwaysOnTop;
         WakePhrase = _settings.WakePhrase;
         SpeechOutputEnabled = _settings.SpeechOutputEnabled;
+        AiDelegationEnabled = _settings.AiDelegationEnabled;
+        AiBaseUrl = _settings.AiBaseUrl;
+        AiModel = _settings.AiModel;
+        RefreshApiKeyStatus();
         await InitializeMemoryAsync().ConfigureAwait(true);
     }
 
@@ -386,6 +436,16 @@ public sealed class MainWindowViewModel : ObservableObject
                 _ => "Failed"
             };
             ProgressValue = result.Status is CipherTaskStatus.Succeeded or CipherTaskStatus.SucceededUnverified ? 100 : 0;
+
+            // An AI-suggested command is placed in the input box for explicit user review;
+            // it only runs if the user presses Send (full policy + confirmation applies).
+            if (result.ActionResult?.Data is { } resultData &&
+                resultData.TryGetValue("suggestedCommand", out var suggestedCommand) &&
+                !string.IsNullOrWhiteSpace(suggestedCommand))
+            {
+                Input = suggestedCommand;
+                ProgressText = "Review the AI-suggested command in the input box, then press Send to run it. It has NOT run yet.";
+            }
         }
         catch (OperationCanceledException)
         {
@@ -407,13 +467,54 @@ public sealed class MainWindowViewModel : ObservableObject
         _settings = _settings with
         {
             WakePhrase = string.IsNullOrWhiteSpace(WakePhrase) ? "Hey CIPHER" : WakePhrase.Trim(),
-            AlwaysOnTop = AlwaysOnTop
+            AlwaysOnTop = AlwaysOnTop,
+            SpeechOutputEnabled = SpeechOutputEnabled,
+            AiDelegationEnabled = AiDelegationEnabled,
+            AiBaseUrl = string.IsNullOrWhiteSpace(AiBaseUrl) ? _settings.AiBaseUrl : AiBaseUrl.Trim(),
+            AiModel = string.IsNullOrWhiteSpace(AiModel) ? _settings.AiModel : AiModel.Trim()
         };
 
         await _settingsStore.SaveAsync(_settings).ConfigureAwait(true);
         WakePhrase = _settings.WakePhrase;
         AddConversation("CIPHER: Settings saved locally.");
         ProgressText = "Settings saved to the local CIPHER profile.";
+    }
+
+    /// <summary>
+    /// Saves an API key from the settings password box into the DPAPI-protected store.
+    /// Keys deliberately never travel through the command box (typed commands are journaled).
+    /// </summary>
+    public async Task SaveApiKeyAsync(string apiKey)
+    {
+        if (string.IsNullOrWhiteSpace(apiKey))
+        {
+            ApiKeyStatus = "Type or paste a key first. It is stored DPAPI-encrypted; it is never shown or journaled.";
+            return;
+        }
+
+        await Task.Run(() => _apiKeyStore.Save(apiKey)).ConfigureAwait(true);
+        RefreshApiKeyStatus();
+        AddConversation("CIPHER: API key saved (DPAPI-encrypted on this PC).");
+    }
+
+    private void RefreshApiKeyStatus()
+    {
+        ApiKeyStatus = _apiKeyStore.HasKey
+            ? "An API key is saved (DPAPI-encrypted). It is never displayed again."
+            : "No API key saved yet.";
+    }
+
+    private string? LoadApiKeyOrNull()
+    {
+        try
+        {
+            return _apiKeyStore.Load();
+        }
+        catch (Exception)
+        {
+            // An unreadable key file behaves like "no key": delegation explains itself.
+            return null;
+        }
     }
 
     // ---- Offline voice (Stage 6) ----

@@ -129,6 +129,97 @@
                               IsChecked="{Binding AlwaysOnTop}"
                               Foreground="#E2E8F0"
                               Margin="10,4" />
+                    <CheckBox Content="Listen for the wake phrase continuously (microphone)"
+                              IsChecked="{Binding WakeListeningEnabled}"
+                              Foreground="#E2E8F0"
+                              Margin="10,4" />
+                    <CheckBox Content="Speak responses aloud (eSpeak NG)"
+                              IsChecked="{Binding SpeechOutputEnabled}"
+                              Foreground="#E2E8F0"
+                              Margin="10,4" />
+                    <TextBlock Text="Voice runs fully offline (Vosk). Put the unzipped vosk-model-small-en-us-0.15 model in %LocalAppData%\CIPHER\models. Speech output needs eSpeak NG; when it is missing, CIPHER says so instead of failing silently."
+                               Foreground="#CBD5E1"
+                               Margin="10,4"
+                               TextWrapping="Wrap" />
+                    <CheckBox Content="Enable external AI delegation ('ask ai …' — off by default)"
+                              IsChecked="{Binding AiDelegationEnabled}"
+                              Foreground="#E2E8F0"
+                              Margin="10,6,10,2" />
+                    <TextBlock Text="When on, each prompt is shown for your explicit approval before anything is sent to the endpoint below. Replies are saved to the Results folder, and suggested commands are never auto-run. Endpoint and model apply when you save settings; the key saves immediately."
+                               Foreground="#FACC15"
+                               Margin="10,2"
+                               TextWrapping="Wrap" />
+                    <Grid Margin="10,4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="130" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="AI endpoint"
+                                   Foreground="#CBD5E1"
+                                   VerticalAlignment="Center" />
+                        <TextBox Grid.Column="1"
+                                 Text="{Binding AiBaseUrl, UpdateSourceTrigger=PropertyChanged}"
+                                 Background="#020617"
+                                 Foreground="#F8FAFC"
+                                 BorderBrush="#334155"
+                                 Padding="6,4" />
+                    </Grid>
+                    <Grid Margin="10,4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="130" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="AI model"
+                                   Foreground="#CBD5E1"
+                                   VerticalAlignment="Center" />
+                        <TextBox Grid.Column="1"
+                                 Text="{Binding AiModel, UpdateSourceTrigger=PropertyChanged}"
+                                 Background="#020617"
+                                 Foreground="#F8FAFC"
+                                 BorderBrush="#334155"
+                                 Padding="6,4" />
+                    </Grid>
+                    <Grid Margin="10,4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="130" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="API key"
+                                   Foreground="#CBD5E1"
+                                   VerticalAlignment="Center" />
+                        <PasswordBox x:Name="AiApiKeyBox"
+                                     Grid.Column="1"
+                                     Background="#020617"
+                                     Foreground="#F8FAFC"
+                                     BorderBrush="#334155"
+                                     Padding="6,4" />
+                        <Button Grid.Column="2"
+                                Content="Save key"
+                                Click="SaveApiKey_Click"
+                                Margin="8,0,0,0"
+                                Padding="10,4"
+                                Background="#1D4ED8"
+                                Foreground="White"
+                                BorderBrush="#3B82F6" />
+                        <Button Grid.Column="3"
+                                Content="Clear key"
+                                Command="{Binding ClearApiKeyCommand}"
+                                Margin="8,0,0,0"
+                                Padding="10,4"
+                                Background="#1E293B"
+                                Foreground="#E2E8F0"
+                                BorderBrush="#334155" />
+                    </Grid>
+                    <TextBlock Text="{Binding ApiKeyStatus}"
+                               Foreground="#CBD5E1"
+                               Margin="10,2"
+                               TextWrapping="Wrap" />
+                    <TextBlock Text="The key is stored only as DPAPI-encrypted data on this PC. Never type it into the command box — typed commands are journaled to local history."
+                               Foreground="#CBD5E1"
+                               Margin="10,2"
+                               TextWrapping="Wrap" />
                     <Grid Margin="10,4">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="130" />

@@ -20,6 +20,18 @@ public sealed record AssistantSettings
     /// <summary>Speak command results aloud with eSpeak NG when available.</summary>
     public bool SpeechOutputEnabled { get; init; }
 
+    /// <summary>
+    /// Master switch for Stage 8 external AI delegation. Off by default: nothing is ever
+    /// sent off this PC unless the user enables this AND approves each prompt.
+    /// </summary>
+    public bool AiDelegationEnabled { get; init; }
+
+    /// <summary>OpenAI-compatible API base URL (for example a cloud endpoint or a local Ollama server).</summary>
+    public string AiBaseUrl { get; init; } = "https://api.openai.com/v1";
+
+    /// <summary>Model name sent to the delegation endpoint.</summary>
+    public string AiModel { get; init; } = "gpt-4o-mini";
+
     public AssistantSettings Normalize()
     {
         return this with
@@ -33,7 +45,9 @@ public sealed record AssistantSettings
             VoiceModelPath = string.IsNullOrWhiteSpace(VoiceModelPath)
                 ? CreateDefaultVoiceModelPath()
                 : VoiceModelPath.Trim(),
-            EspeakExecutablePath = EspeakExecutablePath?.Trim() ?? string.Empty
+            EspeakExecutablePath = EspeakExecutablePath?.Trim() ?? string.Empty,
+            AiBaseUrl = string.IsNullOrWhiteSpace(AiBaseUrl) ? "https://api.openai.com/v1" : AiBaseUrl.Trim(),
+            AiModel = string.IsNullOrWhiteSpace(AiModel) ? "gpt-4o-mini" : AiModel.Trim()
         };
     }
 

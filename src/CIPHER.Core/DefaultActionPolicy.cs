@@ -185,6 +185,14 @@ public sealed class DefaultActionPolicy : IActionPolicy
                     false,
                     "Downloading through an explicitly requested link is permitted. Downloaded files are never executed automatically.");
 
+            case IntentKind.AskExternalAi:
+                return Allow(
+                    RiskLevel.High,
+                    requiresConfirmation: true,
+                    "This sends the prompt text to the configured external AI service. The exact prompt " +
+                    "is previewed for approval first; nothing is sent without it. The service's reply is " +
+                    "saved locally, and any command it suggests is shown for review — never run automatically.");
+
             case IntentKind.SwitchWindow:
             case IntentKind.ReadWebPage:
             case IntentKind.ReadWindowText:

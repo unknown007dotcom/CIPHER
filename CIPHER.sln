@@ -25,6 +25,10 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CIPHER.Memory", "src\CIPHER
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CIPHER.MemoryTest", "src\CIPHER.MemoryTest\CIPHER.MemoryTest.csproj", "{4F5FA8F9-8EAF-4FBE-8AFB-5550DA41D2A4}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CIPHER.Delegation", "src\CIPHER.Delegation\CIPHER.Delegation.csproj", "{155BCE76-C56D-4DF7-A8F5-365DB20F031B}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CIPHER.DelegationTest", "src\CIPHER.DelegationTest\CIPHER.DelegationTest.csproj", "{599178CA-EA1F-4E4A-A298-2F6D6B0188A4}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -75,6 +79,14 @@ Global
 		{4F5FA8F9-8EAF-4FBE-8AFB-5550DA41D2A4}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4F5FA8F9-8EAF-4FBE-8AFB-5550DA41D2A4}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{4F5FA8F9-8EAF-4FBE-8AFB-5550DA41D2A4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{155BCE76-C56D-4DF7-A8F5-365DB20F031B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{155BCE76-C56D-4DF7-A8F5-365DB20F031B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{155BCE76-C56D-4DF7-A8F5-365DB20F031B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{155BCE76-C56D-4DF7-A8F5-365DB20F031B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{599178CA-EA1F-4E4A-A298-2F6D6B0188A4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{599178CA-EA1F-4E4A-A298-2F6D6B0188A4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{599178CA-EA1F-4E4A-A298-2F6D6B0188A4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{599178CA-EA1F-4E4A-A298-2F6D6B0188A4}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
