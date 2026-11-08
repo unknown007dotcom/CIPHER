@@ -1,0 +1,53 @@
+# Build output
+[Bb]in/
+[Oo]bj/
+[Oo]ut/
+artifacts/
+TestResults/
+logs/
+
+# Visual Studio / Rider
+.vs/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# .NET
+*.nupkg
+*.snupkg
+project.lock.json
+project.fragment.lock.json
+
+# Test and coverage
+coverage/
+*.trx
+*.coverage
+*.coveragexml
+
+# Local CIPHER data
+*.db
+*.db-shm
+*.db-wal
+settings.json
+
+# Large local models and downloaded native dependencies
+models/**/*.bin
+models/**/*.model
+models/**/model-*/
+native/**/*.dll
+native/**/*.exe
+native/**/*.msi
+
+# Release files are distributed through GitHub Releases / Dropbox, not normal Git history
+releases/
+*.msi
+SHA256SUMS.txt.local
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.swp
+*~
