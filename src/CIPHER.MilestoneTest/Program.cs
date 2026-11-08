@@ -161,17 +161,50 @@ internal static class Program
             else
             {
                 Report("Open Calculator", true, openCalc.ActionResult?.Message ?? string.Empty);
-                foreach (var button in new[] { "Clear", "Five", "Plus", "Three", "Equals" })
+
+                // Calculator builds differ: newer ones name buttons "5"/"Add"/"3",
+                // older ones "Five"/"Plus"/"Three". Try each spoken form in order.
+                var buttons = new (string Label, string[] Candidates)[]
                 {
-                    var click = await engine.ExecuteTextAsync($"click {button} button in Calculator");
-                    Report($"Click Calculator '{button}'",
-                        click.ActionResult?.Success == true,
-                        click.ActionResult?.Message ?? click.Policy.Reason);
+                    ("Clear", new[] { "Clear" }),
+                    ("Five", new[] { "Five", "5" }),
+                    ("Plus", new[] { "Plus", "Add" }),
+                    ("Three", new[] { "Three", "3" }),
+                    ("Equals", new[] { "Equals" })
+                };
+                foreach (var (label, candidates) in buttons)
+                {
+                    var clicked = false;
+                    var detail = "No candidate was tried.";
+                    foreach (var candidate in candidates)
+                    {
+                        var click = await engine.ExecuteTextAsync($"click {candidate} button in Calculator");
+                        detail = click.ActionResult?.Message ?? click.Policy.Reason;
+                        if (click.ActionResult?.Success == true)
+                        {
+                            clicked = true;
+                            detail = $"Clicked '{candidate}': {detail}";
+                            break;
+                        }
+                    }
+
+                    Report($"Click Calculator '{label}'", clicked, detail);
                 }
 
                 calcWindow = windowService.FindWindow("Calculator");
-                var display = calcWindow is null ? null : uiService.FindElement(calcWindow, "Display is");
-                var displayName = display?.Element.Current.Name;
+                var display = calcWindow is null
+                    ? null
+                    : uiService.FindElement(calcWindow, "CalculatorResults") ??
+                      uiService.FindElement(calcWindow, "Display is");
+                string? displayName = null;
+                try
+                {
+                    displayName = display?.Element.Current.Name;
+                }
+                catch (Exception)
+                {
+                    displayName = null;
+                }
                 var displayOk = displayName is not null && TextMatching.ContainsText(displayName, "8");
                 Report("Calculator display shows 8",
                     displayOk,
@@ -240,8 +273,36 @@ internal static class Program
 
                 var appWindow = await WaitForWindowAsync(windowService, "CIPHER", TimeSpan.FromSeconds(10));
                 var appProcessCount = Process.GetProcessesByName("CIPHER").Length;
+                var exited = startedProcess?.HasExited ?? true;
+                var exitDetail = "n/a";
+                if (exited && startedProcess is not null)
+                {
+                    try
+                    {
+                        exitDetail = startedProcess.ExitCode.ToString();
+                    }
+                    catch (Exception)
+                    {
+                        exitDetail = "unavailable";
+                    }
+                }
+
                 Report("Launch CIPHER app", appWindow is not null,
-                    $"Path: {appPath}; CIPHER processes running: {appProcessCount}; started process exited: {(startedProcess?.HasExited ?? true)}.");
+                    $"Path: {appPath}; CIPHER processes running: {appProcessCount}; started process exited: {exited}; exit code: {exitDetail}.");
+
+                if (appWindow is null)
+                {
+                    var errorLog = Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                        "CIPHER", "logs", "app-errors.log");
+                    if (File.Exists(errorLog))
+                    {
+                        var tail = File.ReadAllText(errorLog);
+                        tail = tail.Length <= 1200 ? tail : tail[^1200..];
+                        var escaped = tail.Replace("%", "%25").Replace("\r", "%0D").Replace("\n", "%0A");
+                        Console.WriteLine($"::warning title=CIPHER app error log::{escaped}");
+                    }
+                }
                 if (appWindow is not null)
                 {
                     var typeInto = await engine.ExecuteTextAsync(
