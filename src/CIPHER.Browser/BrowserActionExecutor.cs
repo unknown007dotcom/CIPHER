@@ -65,6 +65,10 @@ public sealed class BrowserActionExecutor : IActionExecutor, IAsyncDisposable
         {
             return ActionResult.Fail(ex.Message, "ELEMENT_NOT_FOUND");
         }
+        catch (BrowserCredentialFieldException ex)
+        {
+            return ActionResult.Fail(ex.Message, "CREDENTIAL_FIELD");
+        }
         catch (PlaywrightException ex)
         {
             return ActionResult.Fail(DescribePlaywrightError(ex), "BROWSER_ERROR");

@@ -196,14 +196,15 @@ CIPHER/
     CIPHER.MemoryTest/     Kill/restart recovery harness (Stage 7)
     CIPHER.Delegation/     External AI delegation with DPAPI key store (Stage 8)
     CIPHER.DelegationTest/ Loopback fake-endpoint delegation harness (Stage 8)
+    CIPHER.SecurityTest/   Cross-process audit-chain harness (Stage 9)
   docs/
   dependencies/       Offline dependency staging instructions (large files not in Git)
   .github/workflows/  Windows build/test pipeline
 ```
 
-Future modules such as `CIPHER.Voice`, `CIPHER.Memory`, `CIPHER.Browser`, and
-`CIPHER.Installer` will be added only when their implementations are real enough to build and
-test; empty placeholder projects are intentionally avoided.
+Future modules (Vision/OCR fallback, the Stage 10 installer project) will be added only when
+their implementations are real enough to build and test; empty placeholder projects are
+intentionally avoided.
 
 ## Security model
 

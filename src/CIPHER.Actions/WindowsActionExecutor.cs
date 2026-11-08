@@ -205,11 +205,6 @@ public sealed class WindowsActionExecutor : IActionExecutor
         var processes = FindProcesses(command.Target);
         if (processes.Count == 0)
         {
-            foreach (var process in processes)
-            {
-                process.Dispose();
-            }
-
             return ActionResult.Fail($"'{command.Target}' is not currently running.", "APPLICATION_NOT_RUNNING");
         }
 
@@ -886,7 +881,12 @@ public sealed class WindowsActionExecutor : IActionExecutor
         }
 
         var item = matches[0];
-        var fallbackUsed = item.OriginalPath is null;
+        // The recorded original location is data, not authority: if it is missing or
+        // points into a protected system location (which a legitimate delete could never
+        // have produced), fall back to the Recovered folder instead of writing there.
+        var originIsProtected = item.OriginalPath is not null &&
+                                PathSafety.IsProtectedPath(item.OriginalPath, out _);
+        var fallbackUsed = item.OriginalPath is null || originIsProtected;
         var destination = fallbackUsed
             ? Path.Combine(QuarantineService.RecoveredRoot(), item.DisplayName)
             : item.OriginalPath!;
@@ -917,9 +917,11 @@ public sealed class WindowsActionExecutor : IActionExecutor
         var verified = (File.Exists(destination) || Directory.Exists(destination)) &&
                        !File.Exists(item.QuarantinePath) && !Directory.Exists(item.QuarantinePath);
 
-        var note = fallbackUsed
-            ? " Its original location was not recorded, so it was restored to the CIPHER Recovered folder."
-            : string.Empty;
+        var note = !fallbackUsed
+            ? string.Empty
+            : item.OriginalPath is null
+                ? " Its original location was not recorded, so it was restored to the CIPHER Recovered folder."
+                : " Its recorded original location is a protected system location, so it was restored to the CIPHER Recovered folder instead.";
         return ActionResult.Ok(
             $"Restored '{item.DisplayName}' to '{destination}'.{note}",
             verified: verified,

@@ -89,3 +89,11 @@ tampered copy at the modified line.
 Still outstanding before any release claim: interactive Windows 10/11 validation, headed-browser
 validation, real-microphone/speaker checks, DPI/multi-monitor checks, real-provider delegation,
 installer staging with dependency hashes (Stage 10), and the Stage 10 WiX MSI itself.
+
+> **Post-stage verification note (see `docs/VERIFICATION_REPORT.md`):** a full audit after
+> this report landed added a DOM-level password-fill refusal in the browser executor, a
+> protected-origin guard for quarantine restores, confirmations for unknown applications,
+> a 1 MB delegation response cap, a single-instance guard, and made the Stage 9 security-gate
+> harness a gating CI step (the Stage 3/4/5/6 harnesses remain `continue-on-error`
+> experimental in the non-interactive session). Test count rises to 119 and the stage9
+> harness gains a forged-origin restore step.

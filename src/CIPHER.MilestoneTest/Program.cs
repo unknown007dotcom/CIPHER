@@ -486,6 +486,27 @@ internal static class Program
                 "Verify audit log executes",
                 audit.ActionResult is not null,
                 audit.ActionResult?.Message ?? audit.Policy.Reason);
+
+            // A sidecar claiming a protected origin must never steer a restore into a
+            // system location: it falls back to the CIPHER Recovered folder instead.
+            var quarantine = new QuarantineService();
+            Directory.CreateDirectory(quarantine.Root);
+            var forgedPath = Path.Combine(quarantine.Root, "20990101-000000000-stage9-forged.txt");
+            await File.WriteAllTextAsync(forgedPath, "stage9-forged-probe");
+            quarantine.WriteMetadata(forgedPath, @"C:\Windows\stage9-forged.txt", isDirectory: false);
+            var forgedRestore = await approveEngine.ExecuteTextAsync("restore stage9-forged.txt");
+            var recoveredPath = Path.Combine(QuarantineService.RecoveredRoot(), "stage9-forged.txt");
+            var forgedOk = forgedRestore.Status == CipherTaskStatus.Succeeded &&
+                           File.Exists(recoveredPath) &&
+                           !File.Exists(@"C:\Windows\stage9-forged.txt");
+            Report(
+                "Forged protected origin restores to Recovered only",
+                forgedOk,
+                forgedRestore.ActionResult?.Message ?? forgedRestore.Policy.Reason);
+            if (File.Exists(recoveredPath))
+            {
+                File.Delete(recoveredPath);
+            }
         }
         catch (Exception ex)
         {

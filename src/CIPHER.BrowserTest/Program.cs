@@ -34,6 +34,8 @@ internal static class Program
             <input id="name" name="name" type="text" />
             <label for="email">Email</label>
             <input id="email" name="email" type="email" />
+            <label for="nickname">Nickname</label>
+            <input id="nickname" name="nickname" type="password" />
             <button id="submit" type="submit">Submit registration</button>
           </form>
           <div id="confirmation" role="status"></div>
@@ -162,6 +164,15 @@ internal static class Program
             Report("Policy blocks password fill",
                 fillPassword.Status == CipherTaskStatus.Blocked,
                 fillPassword.ActionResult?.Message ?? fillPassword.Policy.Reason);
+
+            // The 'Nickname' input is type=password under an innocent label: the name-based
+            // policy lets it through, so the executor's DOM-level guard must refuse it.
+            await engine.ExecuteTextAsync($"open website {baseUrl}/form");
+            var fillNickname = await engine.ExecuteTextAsync("browser fill Nickname with hunter2");
+            Report("Executor refuses password-typed field",
+                fillNickname.Status == CipherTaskStatus.Failed &&
+                (fillNickname.ActionResult?.Message.Contains("password field") ?? false),
+                fillNickname.ActionResult?.Message ?? fillNickname.Policy.Reason);
 
             var openFtp = await engine.ExecuteTextAsync("open website ftp://example.com/file");
             Report("Policy blocks non-http scheme",

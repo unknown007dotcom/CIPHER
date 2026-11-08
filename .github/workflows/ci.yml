@@ -223,10 +223,12 @@ jobs:
           ./src/CIPHER.SecurityTest/bin/Release/net10.0/CIPHER.SecurityTest.exe --verify --log $log
           if ($LASTEXITCODE -ne 0) { throw "Stage 9 audit verification failed with exit code $LASTEXITCODE." }
 
-      - name: Run Stage 9 security gate harness (quarantine recovery, non-interactive session)
-        continue-on-error: true
+      - name: Run Stage 9 security gate harness (quarantine recovery)
         timeout-minutes: 3
-        run: ./src/CIPHER.MilestoneTest/bin/Release/net10.0-windows/CIPHER.MilestoneTest.exe stage9
+        shell: pwsh
+        run: |
+          ./src/CIPHER.MilestoneTest/bin/Release/net10.0-windows/CIPHER.MilestoneTest.exe stage9
+          if ($LASTEXITCODE -ne 0) { throw "Stage 9 security gate harness failed with exit code $LASTEXITCODE." }
 
       - name: Publish Windows x64 app (framework-dependent validation build)
         run: >-

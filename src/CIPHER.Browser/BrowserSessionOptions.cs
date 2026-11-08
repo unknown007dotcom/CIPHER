@@ -46,9 +46,10 @@ public static class BrowserUrl
     public static string Normalize(string target)
     {
         var value = target.Trim().Trim('"');
+        // Only http(s) is supported; local files and other schemes are never navigated
+        // to (the policy layer blocks them first — this is defense in depth).
         if (value.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
-            value.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
-            value.StartsWith("file://", StringComparison.OrdinalIgnoreCase))
+            value.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
         {
             return value;
         }

@@ -49,7 +49,7 @@ and where each mitigation lives in the code.
 | T8 | Browser workflow downloads and runs malware | Downloads are saved and reported, never opened (`CIPHER.Browser`); browser actions require explicit commands and confirmations per policy |
 | T9 | Voice input triggers actions without the user's intent | Wake-word gating; continuous listening off by default, never auto-starts, requires the wake phrase; push-to-talk scoped to the app window |
 | T10 | Crash or kill mid-task leaves inconsistent state | Task journal marks interrupted tasks `Interrupted` at next start and never re-executes them; corrupt databases are quarantined and recreated (Stage 7) |
-| T11 | Delegation sends data the user didn't approve | Disabled by default; exact request preview in the mandatory confirmation; remote endpoints require a key; loopback-only keyless mode; 30 s timeout and response size cap (`OpenAiChatClient`) |
+| T11 | Delegation sends data the user didn't approve | Disabled by default; exact request preview in the mandatory confirmation; remote endpoints require a key; loopback-only keyless mode; 90-second timeout and a 1 MB response-size cap (`OpenAiChatClient`) |
 | T12 | Tampering with the audit record to hide actions | SHA-256 hash chain with genesis anchor; tampering and deletion detected with first-bad-line (`AuditLog.Verify`, `verify audit log`) — detection only; see residual risks |
 
 ## Residual risks and non-goals
@@ -65,6 +65,17 @@ and where each mitigation lives in the code.
 - **Third-party provider risk.** Anything sent to the configured AI endpoint is governed by
   that provider. CIPHER minimizes exposure (opt-in, preview, redaction of the journal) but
   cannot sanitize what a user explicitly approves sending.
+- **Path checks are lexical.** Protected-path checks normalize and expand paths but do not
+  resolve symlinks/junctions, so a user-created junction inside an unprotected folder that
+  points into a protected one is not detected lexically (the Windows ACLs still apply).
+  Restores never use a recorded origin that is protected; they fall back to the Recovered
+  folder.
+- **Name-based field guards are conservative.** Credential/dangerous-name detection is
+  substring-based: it can over-block innocent names (a "Shipping" field contains "pin") but
+  is layered over runtime checks (UI Automation `IsPassword`, browser `type=password`)
+  that block actual credential controls regardless of label.
+- **Audit rotation starts a fresh chain.** The rotated archive (`cipher-audit.log.1`) is a
+  separate chain with its own genesis; verify after rotation covers the active file.
 - **Model/voice supply chain.** The Vosk model and eSpeak NG binaries used in CI and any
   future installer must be hash-verified at staging time (`dependencies/` manifest); the
   repository does not bundle them yet.

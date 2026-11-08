@@ -11,6 +11,9 @@ namespace CIPHER.Delegation;
 /// </summary>
 public sealed class OpenAiChatClient
 {
+    /// <summary>Hard cap on accepted response size; larger replies are discarded.</summary>
+    internal const int MaxResponseCharacters = 1_000_000;
+
     private readonly HttpClient _httpClient;
 
     public OpenAiChatClient(HttpClient? httpClient = null)
@@ -71,6 +74,12 @@ public sealed class OpenAiChatClient
         using (response)
         {
             var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            if (body.Length > MaxResponseCharacters)
+            {
+                throw new AiDelegationException(
+                    $"The AI endpoint returned an unexpectedly large response ({body.Length} characters); it was discarded.");
+            }
+
             if (!response.IsSuccessStatusCode)
             {
                 var detail = body.Length > 300 ? body[..300] : body;

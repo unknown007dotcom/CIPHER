@@ -13,9 +13,27 @@ public partial class App : System.Windows.Application
     /// </summary>
     internal static bool IsSafeMode { get; private set; }
 
+    // Held for the process lifetime: a second CIPHER instance would double-register the
+    // global hotkey, duplicate the tray icon, and interleave audit-log appends.
+    private Mutex? _singleInstanceMutex;
+
     protected override void OnStartup(StartupEventArgs e)
     {
         IsSafeMode = e.Args.Any(arg => string.Equals(arg, "--safe-mode", StringComparison.OrdinalIgnoreCase));
+
+        _singleInstanceMutex = new Mutex(initiallyOwned: true, "CIPHER.App.SingleInstance", out var createdNew);
+        if (!createdNew)
+        {
+            _singleInstanceMutex.Dispose();
+            _singleInstanceMutex = null;
+            MessageBox.Show(
+                "CIPHER is already running. Look for its icon in the taskbar or system tray.",
+                "CIPHER",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            Shutdown();
+            return;
+        }
 
         AppDomain.CurrentDomain.UnhandledException += (_, args) =>
         {
@@ -31,6 +49,26 @@ public partial class App : System.Windows.Application
         };
 
         base.OnStartup(e);
+    }
+
+    protected override void OnExit(ExitEventArgs e)
+    {
+        if (_singleInstanceMutex is not null)
+        {
+            try
+            {
+                _singleInstanceMutex.ReleaseMutex();
+            }
+            catch (ApplicationException)
+            {
+                // The mutex was not owned by this thread; disposing is enough.
+            }
+
+            _singleInstanceMutex.Dispose();
+            _singleInstanceMutex = null;
+        }
+
+        base.OnExit(e);
     }
 
     /// <summary>

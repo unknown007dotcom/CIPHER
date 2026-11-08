@@ -12,29 +12,39 @@
 ## Current modules
 
 ```text
-CIPHER.App (WPF)
-  └─ references CIPHER.Core and CIPHER.Actions
+CIPHER.App (WPF, net10.0-windows)
+  └─ tray + global hotkey shell, settings UI, DPAPI key entry, --safe-mode
+     references Core, Actions, Browser, Voice, Memory, Delegation
 
-CIPHER.Core (net10.0)
-  ├─ DeterministicCommandParser
-  ├─ WakeWordDetector
-  ├─ DefaultActionPolicy
-  ├─ TaskEngine
-  ├─ BuiltInActionExecutor
-  ├─ AssistantSettings / JsonSettingsStore
-  └─ PathSafety / ApplicationCatalog
+CIPHER.Core (net10.0) — deterministic kernel, no platform dependencies
+  ├─ DeterministicCommandParser / WakeWordDetector / TextMatching
+  ├─ DefaultActionPolicy (fail-closed) / PathSafety / ApplicationCatalog
+  ├─ TaskEngine (parse → policy → confirm → execute → verify → journal)
+  ├─ MemoryCommandHandler (aliases/app paths re-enter the full pipeline)
+  ├─ AuditLog (hash-chained, rotating) / SensitiveDataRedactor
+  └─ BuiltInActionExecutor / AssistantSettings + JsonSettingsStore
 
-CIPHER.Actions (net10.0-windows)
-  ├─ WindowsActionExecutor
-  ├─ WindowService (UI Automation)
-  └─ InputService (Win32 SendInput)
+CIPHER.Actions (net10.0-windows) — WindowsActionExecutor, QuarantineService
+  (UI Automation, SendInput, process and file operations; graceful close only)
 
-CIPHER.Tests (net10.0)
-  └─ parser, policy, wake word, and task-engine tests
+CIPHER.Browser (net10.0) — Playwright sessions, BrowserActionExecutor
+  (lazy start; downloads saved, never executed; password inputs refused)
+
+CIPHER.Voice (net10.0-windows) — Vosk recognition, NAudio capture, eSpeak NG output
+
+CIPHER.Memory (net10.0) — SqliteMemoryStore: task journal with interrupted-task
+  recovery, history, aliases, learned app paths, corruption quarantine
+
+CIPHER.Delegation (net10.0) — opt-in OpenAI-compatible client, DPAPI key store,
+  verified-artifact executor (suggestions never auto-executed)
+
+Test harnesses (net10.0): CIPHER.Tests (xUnit), CIPHER.MilestoneTest (Stages 3/4/9),
+CIPHER.BrowserTest, CIPHER.VoiceTest, CIPHER.MemoryTest, CIPHER.DelegationTest,
+CIPHER.SecurityTest — see docs/TESTING.md
 ```
 
-Future modules will be introduced only with working implementations: Voice, Vision, Memory,
-Browser/Delegation, Security/audit extensions, and Installer.
+Only the planned Vision/OCR module and the Stage 10 installer remain unbuilt; modules are
+added only with working implementations (see `docs/IMPLEMENTATION_PLAN.md`).
 
 ## Task flow
 

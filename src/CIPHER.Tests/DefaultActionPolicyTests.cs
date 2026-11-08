@@ -220,4 +220,19 @@ public sealed class DefaultActionPolicyTests
         Assert.True(decision.IsAllowed);
         Assert.False(decision.RequiresConfirmation);
     }
+
+    [Fact]
+    public void OpeningUnknownApplication_RequiresConfirmation()
+    {
+        var command = new ParsedCommand(
+            "open some unlisted tool",
+            "open some unlisted tool",
+            IntentKind.OpenApplication,
+            Target: "Some Unlisted Tool");
+
+        var decision = _policy.Evaluate(command, _context);
+
+        Assert.True(decision.IsAllowed);
+        Assert.True(decision.RequiresConfirmation);
+    }
 }

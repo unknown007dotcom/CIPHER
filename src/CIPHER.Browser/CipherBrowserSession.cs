@@ -85,6 +85,14 @@ public sealed class CipherBrowserSession : IAsyncDisposable
         var locator = await ResolveFieldAsync(page, target).ConfigureAwait(false)
                       ?? throw new BrowserElementNotFoundException(target);
 
+        // Defense in depth beneath the name-based policy check: never fill a password
+        // input, whatever its label says.
+        var inputType = await locator.GetAttributeAsync("type").ConfigureAwait(false);
+        if (string.Equals(inputType, "password", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new BrowserCredentialFieldException(target);
+        }
+
         await locator.FillAsync(value).ConfigureAwait(false);
 
         string? readBack;
@@ -364,6 +372,18 @@ public sealed class BrowserElementNotFoundException : Exception
 {
     public BrowserElementNotFoundException(string target)
         : base($"No browser element matching '{target}' was found on the current page.")
+    {
+        Target = target;
+    }
+
+    public string Target { get; }
+}
+
+/// <summary>Thrown when a fill targets a password input, whatever its label says.</summary>
+public sealed class BrowserCredentialFieldException : Exception
+{
+    public BrowserCredentialFieldException(string target)
+        : base($"'{target}' is a password field. CIPHER does not fill password fields; enter the value yourself.")
     {
         Target = target;
     }

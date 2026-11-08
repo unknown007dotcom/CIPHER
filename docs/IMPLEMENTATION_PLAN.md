@@ -183,7 +183,9 @@ Implemented foundation:
 
 Exit gate: security test cases prove blocked, cancelled, and failed actions do not mutate data.
 **Stage 9 status: complete** — deterministic tests plus the Stage 9 security-gate and audit
-harnesses passed in CI; see `docs/TEST_REPORT_STAGE9.md`. Remaining stage: 10 (WiX MSI).
+harnesses passed in CI; see `docs/TEST_REPORT_STAGE9.md`. Remaining stages: 10 (WiX MSI) and
+11 (performance and release). A full post-Stage-9 verification audit is recorded in
+`docs/VERIFICATION_REPORT.md`.
 
 ### Stage 10 — Real offline WiX MSI
 

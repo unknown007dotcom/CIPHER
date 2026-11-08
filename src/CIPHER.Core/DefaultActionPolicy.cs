@@ -86,6 +86,16 @@ public sealed class DefaultActionPolicy : IActionPolicy
                         $"'{application.DisplayName}' can change system state and requires confirmation.");
                 }
 
+                if (application is null)
+                {
+                    // Unknown names are resolved by the Windows shell, which can find more
+                    // than the user may expect (PATH entries, registered handlers). Ask first.
+                    return Allow(
+                        RiskLevel.Medium,
+                        requiresConfirmation: true,
+                        $"'{command.Target}' is not one of CIPHER's known applications. Confirm that you want to launch it.");
+                }
+
                 return Allow(RiskLevel.Low, false, "Launching a known or user-requested application is permitted.");
 
             case IntentKind.OpenPath:

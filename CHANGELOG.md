@@ -19,6 +19,18 @@ once the first tested release exists.
 - Stage 7 persistence (CI-verified; see `docs/TEST_REPORT_STAGE7.md`): SQLite task journal
   with interrupted-task recovery, aliases, learned app paths, and corruption quarantine.
 
+### Fixed (post-Stage 9 verification audit — see `docs/VERIFICATION_REPORT.md`)
+
+- Browser fills now refuse `type=password` inputs at the DOM level, not only by field name.
+- Quarantine restores fall back to the Recovered folder when the recorded origin is a
+  protected system location.
+- Unknown (non-catalog) application launches now require confirmation.
+- Delegation responses are capped at 1 MB (the threat model's stale 30 s/size-cap text was
+  corrected to the real 90 s timeout plus this cap).
+- `BrowserUrl` no longer passes `file://` URLs through.
+- Second CIPHER instances are refused with an explanatory message.
+- The Stage 9 security-gate harness is now a gating CI step.
+
 - Stage 8 external AI delegation: `ask ai …` / `delegate …` commands backed by a
   `CIPHER.Delegation` module (OpenAI-compatible client, cloud or local endpoints).
   Policy requires explicit approval of the exact prompt every time; the API key is
