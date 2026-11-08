@@ -107,6 +107,7 @@ jobs:
             exit /b 1
           )
           echo package.bat correctly refused to create an installer before Stage 10 dependencies were ready.
+          exit /b 0
 
       - name: Publish Windows x64 app (framework-dependent validation build)
         run: >-
