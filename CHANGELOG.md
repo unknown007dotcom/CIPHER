@@ -9,6 +9,15 @@ once the first tested release exists.
 
 ### Added
 
+- Stage 6 offline voice: a `CIPHER.Voice` module with Vosk recognition (loaded only
+  while listening), NAudio microphone capture, and eSpeak NG speech output. Push-to-talk
+  on the microphone button, optional continuous “Hey CIPHER” wake-phrase listening
+  (12-second follow-up window, off by default), visible listening state, and spoken
+  result summaries when enabled. A generated-speech harness (`CIPHER.VoiceTest`)
+  verifies recognition, wake-phrase gating, and speech rendering in CI — SAPI speech
+  “Hey Cipher, what time is it?” recognized verbatim by Vosk and gated to the command
+  `what time is it` (run 42489921302). 57 deterministic Core test cases are now covered.
+
 - Stage 5 browser automation: a `CIPHER.Browser` module on Playwright with lazy,
   visible Chromium startup; `open website` / `read page text` / `browser click` /
   `browser fill` / `browser download` commands routed through the standard

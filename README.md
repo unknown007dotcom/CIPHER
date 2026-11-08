@@ -7,11 +7,11 @@ interface, deterministic local commands, Windows automation, an explicit action-
 and a staged path toward voice, browser automation, external-AI delegation, persistent memory,
 and a real offline WiX MSI installer.
 
-> Current status: **Stages 1–5 implemented; Windows CI passing, including the automated
-> Notepad milestone, named-element targeting, and browser automation harnesses.** This
-> repository is not yet a release and does not yet contain a completed `CIPHER.msi`.
-> Interactive WPF/desktop tests on a physical Windows session are still required before
-> release.
+> Current status: **Stages 1–6 implemented; Windows CI passing, including the automated
+> Notepad milestone, named-element targeting, browser automation, and offline voice
+> harnesses.** This repository is not yet a release and does not yet contain a completed
+> `CIPHER.msi`. Interactive WPF/desktop tests on a physical Windows session are still
+> required before release.
 
 ## What is implemented now
 
@@ -48,6 +48,12 @@ and a real offline WiX MSI installer.
   (never executed). Only http/https URLs open; credential-bearing URLs and
   credential-field fills are blocked, and dangerous buttons confirm first. The
   browser launches lazily and visibly when a browser command runs.
+- Offline voice (Stage 6): Vosk speech recognition with “Hey CIPHER” wake-phrase
+  listening (off by default, microphone only open while enabled) and push-to-talk via
+  the 🎙 button; recognized speech runs through the same deterministic command engine.
+  Optional eSpeak NG speech output for results. The model is loaded only while
+  listening — unzip `vosk-model-small-en-us-0.15` into
+  `%LocalAppData%\CIPHER\models` (the installer will bundle it later).
 - Built-in informational commands: help, time, date, and system information.
 - Automated tests for the parser, policy, wake-phrase handling, and task engine.
 - Windows batch scripts for setup checks, dependency checks, build, test, package gating, and
@@ -59,17 +65,17 @@ and a real offline WiX MSI installer.
 
 The following are planned stages, not current claims:
 
-- Vosk offline speech recognition and wake-word microphone pipeline.
-- eSpeak NG speech output.
+- Bundling of the Vosk model and eSpeak NG inside the installer (Stage 10); until then
+  voice needs the model folder described above.
 - SQLite persistent memory and crash/task recovery.
 - External AI delegation (Stage 8; Stage 5 browser automation underneath it is implemented).
-- Voice-driven wake word in the UI (the voice button still reports its not-yet-enabled status).
 - Windows Graphics Capture/OCR fallback.
 - Performance benchmark report against the target budgets.
 - Final WiX `CIPHER.msi` and clean-machine offline install/uninstall verification.
 
-The UI's microphone button currently reports the voice status honestly instead of pretending to
-listen.
+The microphone button is push-to-talk and only opens the microphone while listening is
+active; when the speech model is missing it explains where to install it instead of
+pretending to listen.
 
 ## Supported typed commands
 
@@ -166,6 +172,8 @@ CIPHER/
     CIPHER.MilestoneTest/  Interactive Notepad milestone harness (Stage 3)
     CIPHER.Browser/        Playwright browser automation (Stage 5)
     CIPHER.BrowserTest/    Loopback browser automation harness (Stage 5)
+    CIPHER.Voice/          Vosk recognition, microphone capture, eSpeak NG output (Stage 6)
+    CIPHER.VoiceTest/      Generated-speech voice harness (Stage 6)
   docs/
   dependencies/       Offline dependency staging instructions (large files not in Git)
   .github/workflows/  Windows build/test pipeline
@@ -193,6 +201,7 @@ See [SECURITY.md](SECURITY.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 - [Stage 3 Notepad milestone report](docs/TEST_REPORT_STAGE3.md)
 - [Stage 4 element targeting report](docs/TEST_REPORT_STAGE4.md)
 - [Stage 5 browser automation report](docs/TEST_REPORT_STAGE5.md)
+- [Stage 6 offline voice report](docs/TEST_REPORT_STAGE6.md)
 - [Changelog](CHANGELOG.md)
 
 ## License

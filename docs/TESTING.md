@@ -72,6 +72,22 @@ credential-field fills; no non-http(s) schemes) all succeeded through the real
 command path. It passes in GitHub-hosted Windows CI with headless Chromium; see
 `docs/TEST_REPORT_STAGE5.md`.
 
+### Stage 6 offline voice
+
+Run the generated-speech voice harness (no microphone or speakers needed). CI provides
+the inputs through environment variables; locally pass `--model`, `--wav`, and
+`--espeak` or set `CIPHER_VOSK_MODEL`, `CIPHER_VOICE_WAV`, and `CIPHER_ESPEAK_EXE`:
+
+```powershell
+src\CIPHER.VoiceTest\bin\Release\net10.0-windows\CIPHER.VoiceTest.exe --model <vosk-model-dir> --wav <speech.wav> --espeak <espeak-ng.exe>
+```
+
+Exit code `0` with `STAGE6-PASS` means the Vosk model recognized the generated
+“Hey Cipher, what time is it?” WAV (wake word present), `VoiceSession` gated it to a
+command, and eSpeak NG rendered speech to a valid WAV file. Exit code `3` means the
+model or test audio was unavailable (skipped, reported as a warning — never a fake
+pass). Microphone capture and speaker playback still require a physical-machine check.
+
 ### Stage 3 Notepad milestone
 
 This milestone is automated by `src/CIPHER.MilestoneTest` and runs in GitHub-hosted Windows

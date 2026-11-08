@@ -115,16 +115,21 @@ Implemented:
 
 ### Stage 6 — Voice recognition and speech output
 
-Planned:
+Implemented:
 
-- Vosk offline recognition loaded only while listening.
-- "Hey CIPHER" wake phrase with click-to-activate fallback.
-- eSpeak NG output with configurable voice/language.
-- Visible microphone state and immediate stop/cancel.
-- Model packaging and license review.
-
-Exit gate: offline command recognition test set measured on CPU-only hardware; no model is loaded
-at idle unless the user enables always-listening.
+- [x] Vosk offline recognition in `CIPHER.Voice`, loaded only while listening (model and
+  microphone are released afterwards); WAV-file recognition shares the live code path.
+- [x] "Hey CIPHER" wake phrase with a 12-second follow-up window (`VoiceSession` in Core),
+  plus push-to-talk (the 🎙 button) as the click-to-activate fallback.
+- [x] eSpeak NG output with configurable voice/language, rendered via the offline
+  `espeak-ng.exe`; absence is reported honestly. Cancel stops in-progress speech.
+- [x] Visible microphone state (button toggles to a red stop state, status/partial text)
+  and immediate stop.
+- [x] Exit gate passed in GitHub-hosted Windows CI (run 42489921302; see
+  `docs/TEST_REPORT_STAGE6.md`): generated speech recognized verbatim, gated as a
+  command, and speech output rendered to WAV. 57 Core test cases covered.
+- [ ] Model/eSpeak packaging and license review (Stage 10 installer bundles both).
+- [ ] Real-microphone and human-voice accuracy checks on a physical Windows machine.
 
 ### Stage 7 — SQLite memory and recovery
 
