@@ -172,9 +172,37 @@ internal static class Program
                 calcWindow = windowService.FindWindow("Calculator");
                 var display = calcWindow is null ? null : uiService.FindElement(calcWindow, "Display is");
                 var displayName = display?.Element.Current.Name;
+                var displayOk = displayName is not null && TextMatching.ContainsText(displayName, "8");
                 Report("Calculator display shows 8",
-                    displayName is not null && TextMatching.ContainsText(displayName, "8"),
+                    displayOk,
                     $"Display element name: '{displayName}'.");
+                if (!displayOk && calcWindow is not null)
+                {
+                    var buttonNames = new List<string>();
+                    try
+                    {
+                        var buttons = calcWindow.FindAll(
+                            System.Windows.Automation.TreeScope.Descendants,
+                            new System.Windows.Automation.PropertyCondition(
+                                System.Windows.Automation.AutomationElement.ControlTypeProperty,
+                                System.Windows.Automation.ControlType.Button));
+                        foreach (System.Windows.Automation.AutomationElement button in buttons)
+                        {
+                            var buttonName = button.Current.Name;
+                            if (!string.IsNullOrWhiteSpace(buttonName))
+                            {
+                                buttonNames.Add(buttonName);
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        buttonNames.Add($"(enumeration failed: {ex.Message})");
+                    }
+
+                    Console.WriteLine(
+                        $"::warning title=Calculator button names::{string.Join(" | ", buttonNames.Take(60))}");
+                }
 
                 var closeCalc = await engine.ExecuteTextAsync("close Calculator");
                 Console.WriteLine($"CLEANUP: Calculator close={(closeCalc.ActionResult?.Success == true ? "OK" : "not completed")}.");
@@ -211,7 +239,9 @@ internal static class Program
                 using var startedProcess = process;
 
                 var appWindow = await WaitForWindowAsync(windowService, "CIPHER", TimeSpan.FromSeconds(10));
-                Report("Launch CIPHER app", appWindow is not null, $"Path: {appPath}");
+                var appProcessCount = Process.GetProcessesByName("CIPHER").Length;
+                Report("Launch CIPHER app", appWindow is not null,
+                    $"Path: {appPath}; CIPHER processes running: {appProcessCount}; started process exited: {(startedProcess?.HasExited ?? true)}.");
                 if (appWindow is not null)
                 {
                     var typeInto = await engine.ExecuteTextAsync(
@@ -305,6 +335,13 @@ internal static class Program
     {
         Steps.Add((name, passed));
         Console.WriteLine($"STEP: {name} => {(passed ? "PASS" : "FAIL")} - {details}");
+        if (!passed)
+        {
+            // Surface the failure detail as a workflow annotation so it is visible
+            // even when full CI logs cannot be downloaded.
+            var escaped = details.Replace("%", "%25").Replace("\r", "%0D").Replace("\n", "%0A");
+            Console.WriteLine($"::error title=CIPHER harness step '{name}'::{escaped}");
+        }
     }
 
     private static void ReportSkip(string name, string reason)
