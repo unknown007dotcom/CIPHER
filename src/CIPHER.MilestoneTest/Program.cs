@@ -253,6 +253,35 @@ internal static class Program
 
                     Console.WriteLine(
                         $"::warning title=Calculator display candidates::{string.Join(" | ", displayCandidates.Take(30))}");
+
+                    var textElements = new List<string>();
+                    try
+                    {
+                        var allForText = calcWindow.FindAll(
+                            System.Windows.Automation.TreeScope.Descendants,
+                            System.Windows.Automation.Condition.TrueCondition);
+                        foreach (System.Windows.Automation.AutomationElement element in allForText)
+                        {
+                            var typeName = element.Current.ControlType.ProgrammaticName;
+                            if (typeName is "ControlType.Text" or "ControlType.Edit" or "ControlType.Document")
+                            {
+                                textElements.Add(
+                                    $"name='{element.Current.Name}' id='{element.Current.AutomationId}' class='{element.Current.ClassName}'");
+                            }
+
+                            if (textElements.Count >= 30)
+                            {
+                                break;
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        textElements.Add($"(enumeration failed: {ex.Message})");
+                    }
+
+                    Console.WriteLine(
+                        $"::warning title=Calculator text elements::{string.Join(" | ", textElements)}");
                 }
 
                 var closeCalc = await engine.ExecuteTextAsync("close Calculator");
