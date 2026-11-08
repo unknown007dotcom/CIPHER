@@ -403,16 +403,16 @@ public sealed class DeterministicCommandParser : ICommandParser
     /// element names that themselves contain " in " (for example "Sign in button") stay intact
     /// and only the last " in " introduces the window title.
     /// </summary>
-    private static (string Name, string? Window) SplitWindowSuffix(string value, Func<string, string> nameCleaner)
+    private static (string Name, string? Window) SplitWindowSuffix(string value)
     {
         var windowMatch = Regex.Match(value, "^(?<head>.+)\\s+in\\s+(?<window>.+)$", Options);
         if (!windowMatch.Success)
         {
-            return (nameCleaner(value), null);
+            return (value.Trim(), null);
         }
 
         return (
-            nameCleaner(windowMatch.Groups["head"].Value.Trim()),
+            windowMatch.Groups["head"].Value.Trim(),
             CleanTarget(windowMatch.Groups["window"].Value));
     }
 
