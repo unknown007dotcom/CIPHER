@@ -70,9 +70,14 @@ jobs:
             "### FAILED: $($result.testName) ($($result.outcome))" |
               Out-File -FilePath $summaryPath -Append -Encoding utf8
             $message = $result.SelectSingleNode(".//*[local-name()='Message']")
+            $messageText = if ($message) { $message.InnerText } else { "No failure message was recorded." }
             if ($message) {
               $message.InnerText | Out-File -FilePath $summaryPath -Append -Encoding utf8
             }
+
+            $escapedTest = $result.testName.Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+            $escapedMessage = $messageText.Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+            Write-Host "::error title=Failed test $escapedTest::$escapedMessage"
           }
 
       - name: Publish Windows x64 app (framework-dependent validation build)
