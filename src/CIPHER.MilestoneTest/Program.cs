@@ -192,19 +192,11 @@ internal static class Program
                 }
 
                 calcWindow = windowService.FindWindow("Calculator");
-                var display = calcWindow is null
+                var displayElement = calcWindow is null
                     ? null
-                    : uiService.FindElement(calcWindow, "CalculatorResults") ??
-                      uiService.FindElement(calcWindow, "Display is");
-                string? displayName = null;
-                try
-                {
-                    displayName = display?.Element.Current.Name;
-                }
-                catch (Exception)
-                {
-                    displayName = null;
-                }
+                    : FindByAutomationId(calcWindow, "CalculatorResults") ??
+                      uiService.FindElement(calcWindow, "Display is")?.Element;
+                var displayName = displayElement is null ? null : ReadAnyText(displayElement);
                 var displayOk = displayName is not null && TextMatching.ContainsText(displayName, "8");
                 Report("Calculator display shows 8",
                     displayOk,
@@ -383,6 +375,71 @@ internal static class Program
         }
 
         return null;
+    }
+
+    private static System.Windows.Automation.AutomationElement? FindByAutomationId(
+        System.Windows.Automation.AutomationElement scope,
+        string automationId)
+    {
+        try
+        {
+            return scope.FindFirst(
+                System.Windows.Automation.TreeScope.Descendants,
+                new System.Windows.Automation.PropertyCondition(
+                    System.Windows.Automation.AutomationElement.AutomationIdProperty,
+                    automationId));
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Reads visible text from an element: its own Value/Text pattern first, then the
+    /// names of descendant text elements (some displays nest their text).
+    /// </summary>
+    private static string? ReadAnyText(System.Windows.Automation.AutomationElement element)
+    {
+        var textService = new TextControlService();
+        var direct = textService.ReadText(element);
+        if (!string.IsNullOrWhiteSpace(direct))
+        {
+            return direct;
+        }
+
+        try
+        {
+            var name = element.Current.Name;
+            if (!string.IsNullOrWhiteSpace(name))
+            {
+                return name;
+            }
+
+            var parts = new List<string>();
+            var descendants = element.FindAll(
+                System.Windows.Automation.TreeScope.Descendants,
+                System.Windows.Automation.Condition.TrueCondition);
+            foreach (System.Windows.Automation.AutomationElement descendant in descendants)
+            {
+                var descendantName = descendant.Current.Name;
+                if (!string.IsNullOrWhiteSpace(descendantName))
+                {
+                    parts.Add(descendantName);
+                }
+
+                if (parts.Count >= 20)
+                {
+                    break;
+                }
+            }
+
+            return parts.Count == 0 ? null : string.Join(" ", parts);
+        }
+        catch (Exception)
+        {
+            return null;
+        }
     }
 
     private static string? GetArgumentValue(string[] args, string name)

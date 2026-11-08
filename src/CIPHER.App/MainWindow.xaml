@@ -219,7 +219,7 @@
                 <StackPanel Grid.Row="3" Margin="0,10,0,0">
                     <ProgressBar Minimum="0"
                                  Maximum="100"
-                                 Value="{Binding ProgressValue}"
+                                 Value="{Binding ProgressValue, Mode=OneWay}"
                                  Height="6"
                                  Background="#1E293B"
                                  Foreground="#38BDF8" />
