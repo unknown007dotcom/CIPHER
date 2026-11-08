@@ -45,6 +45,36 @@ jobs:
           --logger "trx;LogFileName=CIPHER.Tests.trx"
           --results-directory TestResults
 
+      - name: Summarize test results
+        if: always()
+        shell: pwsh
+        run: |
+          $summaryPath = $env:GITHUB_STEP_SUMMARY
+          "## CIPHER test results" | Out-File -FilePath $summaryPath -Encoding utf8
+          $trx = Get-ChildItem -Path TestResults -Filter *.trx -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $trx) {
+            "No TRX test report was produced." | Out-File -FilePath $summaryPath -Append -Encoding utf8
+            exit 0
+          }
+
+          [xml]$report = Get-Content -LiteralPath $trx.FullName
+          $counters = $report.SelectSingleNode("//*[local-name()='Counters']")
+          if ($counters) {
+            "Total: $($counters.total); Passed: $($counters.passed); Failed: $($counters.failed); Error: $($counters.error)" |
+              Out-File -FilePath $summaryPath -Append -Encoding utf8
+          }
+
+          $failed = $report.SelectNodes("//*[local-name()='UnitTestResult' and @outcome!='Passed']")
+          foreach ($result in $failed) {
+            "" | Out-File -FilePath $summaryPath -Append -Encoding utf8
+            "### FAILED: $($result.testName) ($($result.outcome))" |
+              Out-File -FilePath $summaryPath -Append -Encoding utf8
+            $message = $result.SelectSingleNode(".//*[local-name()='Message']")
+            if ($message) {
+              $message.InnerText | Out-File -FilePath $summaryPath -Append -Encoding utf8
+            }
+          }
+
       - name: Publish Windows x64 app (framework-dependent validation build)
         run: >-
           dotnet publish src/CIPHER.App/CIPHER.App.csproj
