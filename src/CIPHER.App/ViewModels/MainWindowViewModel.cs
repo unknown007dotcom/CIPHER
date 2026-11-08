@@ -216,7 +216,7 @@ public sealed class MainWindowViewModel : ObservableObject
     {
         try
         {
-            StopListening();
+            StopListening(processFlushed: false);
             _voiceListener?.Dispose();
             _voiceListener = null;
             _speechSynthesizer?.Dispose();
@@ -244,7 +244,7 @@ public sealed class MainWindowViewModel : ObservableObject
         ProgressText = message;
     }
 
-    private async Task ExecuteAsync()
+    private async Task ExecuteFromInputAsync()
     {
         var text = Input.Trim();
         if (text.Length == 0 || IsBusy)
@@ -253,6 +253,17 @@ public sealed class MainWindowViewModel : ObservableObject
         }
 
         Input = string.Empty;
+        await ExecuteTextAsync(text).ConfigureAwait(true);
+    }
+
+    /// <summary>Runs one command (typed or recognized from speech) through the task engine.</summary>
+    private async Task ExecuteTextAsync(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text) || IsBusy)
+        {
+            return;
+        }
+
         AddConversation($"You: {text}");
         IsBusy = true;
         ProgressValue = 5;
@@ -274,6 +285,7 @@ public sealed class MainWindowViewModel : ObservableObject
 
             var message = result.ActionResult?.Message ?? result.Policy.Reason;
             AddConversation($"CIPHER: {message}");
+            SpeakResultMessage(message);
             StatusText = result.Status switch
             {
                 CipherTaskStatus.Succeeded => "Completed",
