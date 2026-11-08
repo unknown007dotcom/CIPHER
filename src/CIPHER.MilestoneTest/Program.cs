@@ -192,11 +192,36 @@ internal static class Program
                 }
 
                 calcWindow = windowService.FindWindow("Calculator");
-                var displayElement = calcWindow is null
-                    ? null
-                    : FindByAutomationId(calcWindow, "CalculatorResults") ??
-                      uiService.FindElement(calcWindow, "Display is")?.Element;
-                var displayName = displayElement is null ? null : ReadAnyText(displayElement);
+                string? displayName = null;
+                if (calcWindow is not null)
+                {
+                    var displayElement = FindByAutomationId(calcWindow, "CalculatorResults") ??
+                                         uiService.FindElement(calcWindow, "Display is")?.Element;
+                    displayName = displayElement is null ? null : ReadAnyText(displayElement);
+
+                    // Legacy/desktop Calculator builds expose the result as plain
+                    // text elements rather than a named display control.
+                    if (string.IsNullOrWhiteSpace(displayName))
+                    {
+                        var textParts = new List<string>();
+                        var textElements = calcWindow.FindAll(
+                            System.Windows.Automation.TreeScope.Descendants,
+                            new System.Windows.Automation.PropertyCondition(
+                                System.Windows.Automation.AutomationElement.ControlTypeProperty,
+                                System.Windows.Automation.ControlType.Text));
+                        foreach (System.Windows.Automation.AutomationElement textElement in textElements)
+                        {
+                            var part = textElement.Current.Name;
+                            if (!string.IsNullOrWhiteSpace(part))
+                            {
+                                textParts.Add(part);
+                            }
+                        }
+
+                        displayName = string.Join(" ", textParts);
+                    }
+                }
+
                 var displayOk = displayName is not null && TextMatching.ContainsText(displayName, "8");
                 Report("Calculator display shows 8",
                     displayOk,
