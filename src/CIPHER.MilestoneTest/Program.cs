@@ -181,18 +181,34 @@ internal static class Program
             }
 
             // Part B: type into CIPHER's own named command field and click its Clear button.
-            var appPath = GetArgumentValue(args, "--app");
-            if (string.IsNullOrWhiteSpace(appPath) || !File.Exists(appPath))
+            var appPathArgument = GetArgumentValue(args, "--app");
+            var appPath = string.IsNullOrWhiteSpace(appPathArgument)
+                ? null
+                : Path.GetFullPath(appPathArgument);
+            if (appPath is null || !File.Exists(appPath))
             {
-                ReportSkip("CIPHER field targeting", "CIPHER.exe path was not supplied or does not exist.");
+                ReportSkip("CIPHER field targeting",
+                    $"CIPHER.exe was not found at '{appPath ?? "(no --app path supplied)"}'.");
             }
             else
             {
-                using var process = Process.Start(new ProcessStartInfo
+                Process? process;
+                try
                 {
-                    FileName = appPath,
-                    UseShellExecute = true
-                });
+                    process = Process.Start(new ProcessStartInfo
+                    {
+                        FileName = appPath,
+                        WorkingDirectory = Path.GetDirectoryName(appPath),
+                        UseShellExecute = true
+                    });
+                }
+                catch (Exception ex)
+                {
+                    Report("Launch CIPHER app", false, $"Could not start '{appPath}': {ex.Message}");
+                    return FinishStage4();
+                }
+
+                using var startedProcess = process;
 
                 var appWindow = await WaitForWindowAsync(windowService, "CIPHER", TimeSpan.FromSeconds(10));
                 Report("Launch CIPHER app", appWindow is not null, $"Path: {appPath}");
