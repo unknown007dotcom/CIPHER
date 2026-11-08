@@ -56,6 +56,22 @@ run on Windows before their stages are marked complete:
 6. Cancel a long-running file copy if available.
 7. Close and relaunch CIPHER.
 
+### Stage 5 browser automation
+
+Run the loopback browser harness (serves deterministic pages on `127.0.0.1`; no
+external network):
+
+```powershell
+pwsh src\CIPHER.BrowserTest\bin\Release\net10.0\playwright.ps1 install chromium
+src\CIPHER.BrowserTest\bin\Release\net10.0\CIPHER.BrowserTest.exe
+```
+
+Exit code `0` with `STAGE5-PASS` means navigation, verified form fill, submit,
+read-back, tab switching, download content verification, and policy blocking (no
+credential-field fills; no non-http(s) schemes) all succeeded through the real
+command path. It passes in GitHub-hosted Windows CI with headless Chromium; see
+`docs/TEST_REPORT_STAGE5.md`.
+
 ### Stage 3 Notepad milestone
 
 This milestone is automated by `src/CIPHER.MilestoneTest` and runs in GitHub-hosted Windows

@@ -9,6 +9,16 @@ once the first tested release exists.
 
 ### Added
 
+- Stage 5 browser automation: a `CIPHER.Browser` module on Playwright with lazy,
+  visible Chromium startup; `open website` / `read page text` / `browser click` /
+  `browser fill` / `browser download` commands routed through the standard
+  parser/policy/task engine. Verified form fills (read-back), accessible
+  role/label element location, tab list/switch/close, and downloads saved to a
+  local folder (never executed). A loopback-only browser harness
+  (`CIPHER.BrowserTest`) verifies navigation, fill, submit, tabs, download
+  content, and policy blocking in CI (run 42486697622). 48 deterministic Core
+  test cases are now covered, including browser command policy.
+
 - Initial .NET 10 solution for Windows 10/11 x64.
 - Offline deterministic command parser with wake-phrase text handling.
 - Fail-closed action policy, protected-path checks, and confirmation requirements.

@@ -7,10 +7,11 @@ interface, deterministic local commands, Windows automation, an explicit action-
 and a staged path toward voice, browser automation, external-AI delegation, persistent memory,
 and a real offline WiX MSI installer.
 
-> Current status: **Stages 1–4 implemented; Windows CI passing, including the automated
-> Notepad milestone and named-element targeting harnesses.** This repository is not yet a
-> release and does not yet contain a completed `CIPHER.msi`. Interactive WPF/desktop tests
-> on a physical Windows session are still required before release.
+> Current status: **Stages 1–5 implemented; Windows CI passing, including the automated
+> Notepad milestone, named-element targeting, and browser automation harnesses.** This
+> repository is not yet a release and does not yet contain a completed `CIPHER.msi`.
+> Interactive WPF/desktop tests on a physical Windows session are still required before
+> release.
 
 ## What is implemented now
 
@@ -42,6 +43,11 @@ and a real offline WiX MSI installer.
     verified only when the typed text is observed afterwards;
   - create/list/copy/move/rename files and folders;
   - move deleted items to a reversible local quarantine instead of permanently deleting them.
+- Playwright browser automation (Stage 5): open websites, read page title/text, fill
+  fields and buttons by accessible role/label, and save downloads locally
+  (never executed). Only http/https URLs open; credential-bearing URLs and
+  credential-field fills are blocked, and dangerous buttons confirm first. The
+  browser launches lazily and visibly when a browser command runs.
 - Built-in informational commands: help, time, date, and system information.
 - Automated tests for the parser, policy, wake-phrase handling, and task engine.
 - Windows batch scripts for setup checks, dependency checks, build, test, package gating, and
@@ -56,8 +62,8 @@ The following are planned stages, not current claims:
 - Vosk offline speech recognition and wake-word microphone pipeline.
 - eSpeak NG speech output.
 - SQLite persistent memory and crash/task recovery.
-- Playwright browser automation.
-- External AI delegation.
+- External AI delegation (Stage 8; Stage 5 browser automation underneath it is implemented).
+- Voice-driven wake word in the UI (the voice button still reports its not-yet-enabled status).
 - Windows Graphics Capture/OCR fallback.
 - Performance benchmark report against the target budgets.
 - Final WiX `CIPHER.msi` and clean-machine offline install/uninstall verification.
@@ -79,6 +85,11 @@ read text in Notepad
 verify Notepad contains Hello from CIPHER
 click Save button in Notepad
 type hello into Search field in Notepad
+open website example.com
+read page text
+browser fill Email with ada@example.com
+browser click Submit registration
+browser download Download hello.txt
 create folder C:\Temp\CIPHER-Test
 create folder in C:\Temp called CIPHER-Test
 create file C:\Temp\cipher-note.txt
@@ -153,6 +164,8 @@ CIPHER/
     CIPHER.Actions/    Windows process/UI Automation/SendInput/file actions
     CIPHER.Tests/      xUnit tests for core behavior
     CIPHER.MilestoneTest/  Interactive Notepad milestone harness (Stage 3)
+    CIPHER.Browser/        Playwright browser automation (Stage 5)
+    CIPHER.BrowserTest/    Loopback browser automation harness (Stage 5)
   docs/
   dependencies/       Offline dependency staging instructions (large files not in Git)
   .github/workflows/  Windows build/test pipeline
@@ -179,6 +192,7 @@ See [SECURITY.md](SECURITY.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 - [Stage 1 test report](docs/TEST_REPORT_STAGE1.md)
 - [Stage 3 Notepad milestone report](docs/TEST_REPORT_STAGE3.md)
 - [Stage 4 element targeting report](docs/TEST_REPORT_STAGE4.md)
+- [Stage 5 browser automation report](docs/TEST_REPORT_STAGE5.md)
 - [Changelog](CHANGELOG.md)
 
 ## License

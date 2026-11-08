@@ -98,16 +98,20 @@ Exit gate: parser/policy regression suite passes and ambiguous commands do not e
 
 ### Stage 5 — Browser automation
 
-Planned:
+Implemented:
 
-- Add Playwright for .NET in an isolated module.
-- Prefer DOM/accessibility selectors; screenshots/OCR only as fallback.
-- Support navigation, reading, click, fill, upload/download, tabs, and verification.
-- Reuse the user's existing browser session only where the selected browser/profile design and
-  platform terms permit it. Do not extract or store passwords/cookies in plaintext.
-
-Exit gate: deterministic local test pages pass for navigation, form fill, download, and result
-verification.
+- [x] Playwright for .NET in an isolated module (`CIPHER.Browser`), launched lazily.
+- [x] Prefer DOM/accessibility selectors (roles, labels, placeholders, text); no screenshots/OCR.
+- [x] Navigation, page title/text reading, click, verified fill, download-to-disk with content
+  verification, multi-tab open/list/switch, all through the standard command path
+  (`open website`, `read page text`, `browser click`, `browser fill`, `browser download`).
+- [x] Exit gate passed: deterministic local test pages verify navigation, form fill, submit,
+  read-back, tabs, and download in GitHub-hosted Windows CI (run 42486697622; see
+  `docs/TEST_REPORT_STAGE5.md`).
+- [ ] File upload command (deferred to the Stage 8 delegation work, where uploads get
+  explicit per-file user approval).
+- Existing logged-in browser profiles are not reused yet; that remains a Stage 8 design
+  decision. Passwords/cookies are never extracted or stored.
 
 ### Stage 6 — Voice recognition and speech output
 
