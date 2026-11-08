@@ -1,0 +1,17 @@
+* text=auto
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.cs text eol=crlf
+*.csproj text eol=crlf
+*.sln text eol=crlf
+*.xaml text eol=crlf
+*.json text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.dll binary
+*.exe binary
+*.msi binary
+*.png binary
+*.jpg binary
+*.ico binary

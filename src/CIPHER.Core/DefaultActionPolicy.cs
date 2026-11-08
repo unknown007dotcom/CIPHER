@@ -1,0 +1,337 @@
+namespace CIPHER.Core;
+
+/// <summary>Fail-closed policy for deterministic commands.</summary>
+public sealed class DefaultActionPolicy : IActionPolicy
+{
+    private static readonly HashSet<string> PrivilegedExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".exe",
+        ".msi",
+        ".bat",
+        ".cmd",
+        ".ps1",
+        ".vbs",
+        ".js",
+        ".com",
+        ".scr"
+    };
+
+    public PolicyDecision Evaluate(ParsedCommand command, CommandContext context)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(context);
+
+        switch (command.Intent)
+        {
+            case IntentKind.Unknown:
+                return Block(RiskLevel.Low, "The command was not recognized, so nothing was executed.");
+
+            case IntentKind.RunCommand:
+                return Block(
+                    RiskLevel.Critical,
+                    "Arbitrary shell execution is disabled in CIPHER v1. Use a structured command instead.");
+
+            case IntentKind.DeletePath:
+                if (PathSafety.IsProtectedPath(command.Target, out var deleteReason))
+                {
+                    return Block(RiskLevel.Critical, deleteReason);
+                }
+
+                return Allow(
+                    RiskLevel.Critical,
+                    requiresConfirmation: true,
+                    "Deleting data requires explicit confirmation. CIPHER will move the item to its reversible quarantine folder.");
+
+            case IntentKind.MovePath:
+            case IntentKind.RenamePath:
+                if (PathSafety.IsProtectedPath(command.Target, out var sourceReason))
+                {
+                    return Block(RiskLevel.High, sourceReason);
+                }
+
+                if (PathSafety.IsProtectedPath(command.SecondaryTarget, out var destinationReason))
+                {
+                    return Block(RiskLevel.High, destinationReason);
+                }
+
+                return Allow(
+                    RiskLevel.High,
+                    requiresConfirmation: true,
+                    "Moving or renaming data requires explicit confirmation.");
+
+            case IntentKind.CopyPath:
+                if (PathSafety.IsProtectedPath(command.SecondaryTarget, out var copyReason))
+                {
+                    return Block(RiskLevel.Medium, copyReason);
+                }
+
+                return Allow(RiskLevel.Medium, false, "Copying creates new data but does not alter the source.");
+
+            case IntentKind.CreateFolder:
+            case IntentKind.CreateFile:
+                if (PathSafety.IsProtectedPath(command.Target, out var createReason))
+                {
+                    return Block(RiskLevel.Medium, createReason);
+                }
+
+                return Allow(command.Risk, false, "The target is outside protected Windows locations.");
+
+            case IntentKind.OpenApplication:
+                var application = ApplicationCatalog.Resolve(command.Target);
+                if (application?.IsSensitive == true)
+                {
+                    return Allow(
+                        RiskLevel.High,
+                        requiresConfirmation: true,
+                        $"'{application.DisplayName}' can change system state and requires confirmation.");
+                }
+
+                if (application is null)
+                {
+                    // Unknown names are resolved by the Windows shell, which can find more
+                    // than the user may expect (PATH entries, registered handlers). Ask first.
+                    return Allow(
+                        RiskLevel.Medium,
+                        requiresConfirmation: true,
+                        $"'{command.Target}' is not one of CIPHER's known applications. Confirm that you want to launch it.");
+                }
+
+                return Allow(RiskLevel.Low, false, "Launching a known or user-requested application is permitted.");
+
+            case IntentKind.OpenPath:
+                if (!string.IsNullOrWhiteSpace(command.Target) &&
+                    PrivilegedExtensions.Contains(Path.GetExtension(PathSafety.Unquote(command.Target))))
+                {
+                    return Allow(
+                        RiskLevel.High,
+                        requiresConfirmation: true,
+                        "Opening an executable or script requires explicit confirmation.");
+                }
+
+                return Allow(RiskLevel.Medium, false, "Opening a non-executable path with its registered handler is permitted.");
+
+            case IntentKind.PressKeys:
+                if (IsDangerousShortcut(command.Argument))
+                {
+                    return Allow(
+                        RiskLevel.High,
+                        requiresConfirmation: true,
+                        "This shortcut can close windows or open privileged system UI and requires confirmation.");
+                }
+
+                return Allow(RiskLevel.Medium, false, "The keyboard shortcut was explicitly requested.");
+
+            case IntentKind.CloseApplication:
+                return Allow(
+                    RiskLevel.Medium,
+                    false,
+                    "CIPHER requests a graceful close and never force-kills the target in v1.");
+
+            case IntentKind.TypeText:
+                return Allow(RiskLevel.Medium, false, "Text entry was explicitly requested for the currently focused control.");
+
+            case IntentKind.ClickUiElement:
+                if (IsDangerousElementName(command.Target))
+                {
+                    return Allow(
+                        RiskLevel.High,
+                        requiresConfirmation: true,
+                        $"'{command.Target}' can perform a destructive or externally visible action and requires confirmation.");
+                }
+
+                return Allow(RiskLevel.Medium, false, "The user explicitly requested clicking this control.");
+
+            case IntentKind.TypeIntoUiElement:
+                if (IsCredentialFieldName(command.Target))
+                {
+                    return Block(
+                        RiskLevel.Critical,
+                        "CIPHER does not type into password, PIN, or payment fields. Enter those values yourself.");
+                }
+
+                return Allow(RiskLevel.Medium, false, "The user explicitly requested text entry into a named field.");
+
+            case IntentKind.OpenWebsite:
+                if (HasBlockedWebScheme(command.Target))
+                {
+                    return Block(
+                        RiskLevel.High,
+                        "Only http and https websites can be opened. Local files, scripts, and other schemes are not opened in the browser.");
+                }
+
+                if (UrlContainsCredentials(command.Target))
+                {
+                    return Block(
+                        RiskLevel.High,
+                        "URLs containing embedded credentials are not opened. Sign in through the website itself.");
+                }
+
+                return Allow(RiskLevel.Medium, false, "Opening a web page in the user's browser session is permitted.");
+
+            case IntentKind.BrowserClickElement:
+                if (IsDangerousElementName(command.Target))
+                {
+                    return Allow(
+                        RiskLevel.High,
+                        requiresConfirmation: true,
+                        $"'{command.Target}' can perform a destructive or externally visible action and requires confirmation.");
+                }
+
+                return Allow(RiskLevel.Medium, false, "The user explicitly requested clicking this browser element.");
+
+            case IntentKind.BrowserFillField:
+                if (IsCredentialFieldName(command.Target))
+                {
+                    return Block(
+                        RiskLevel.Critical,
+                        "CIPHER does not fill password, PIN, or payment fields. Enter those values yourself.");
+                }
+
+                return Allow(RiskLevel.Medium, false, "The user explicitly requested filling a browser field.");
+
+            case IntentKind.BrowserDownload:
+                return Allow(
+                    RiskLevel.Medium,
+                    false,
+                    "Downloading through an explicitly requested link is permitted. Downloaded files are never executed automatically.");
+
+            case IntentKind.AskExternalAi:
+                return Allow(
+                    RiskLevel.High,
+                    requiresConfirmation: true,
+                    "This sends the prompt text to the configured external AI service. The exact prompt " +
+                    "is previewed for approval first; nothing is sent without it. The service's reply is " +
+                    "saved locally, and any command it suggests is shown for review — never run automatically.");
+
+            case IntentKind.RestoreQuarantineItem:
+                return Allow(
+                    RiskLevel.Medium,
+                    requiresConfirmation: true,
+                    "Restoring moves a quarantined item back to its original location (never overwriting an existing file) and requires confirmation.");
+
+            case IntentKind.SwitchWindow:
+            case IntentKind.ReadWebPage:
+            case IntentKind.ReadWindowText:
+            case IntentKind.VerifyWindowText:
+            case IntentKind.ListDirectory:
+            case IntentKind.ListQuarantine:
+            case IntentKind.VerifyAuditLog:
+            case IntentKind.Help:
+            case IntentKind.GetTime:
+            case IntentKind.GetDate:
+            case IntentKind.GetSystemInfo:
+                return Allow(RiskLevel.Low, false, "This is a read-only or navigation action.");
+
+            default:
+                return Block(command.Risk, $"Intent '{command.Intent}' is not enabled.");
+        }
+    }
+
+    private static readonly string[] DangerousElementWords =
+    {
+        "delete", "erase", "format", "uninstall", "shutdown", "shut down", "restart",
+        "reboot", "pay", "purchase", "buy", "reset", "publish", "send", "remove"
+    };
+
+    private static readonly string[] CredentialFieldWords =
+    {
+        "password", "pin", "passcode", "secret", "cvv", "cvc", "card number",
+        "credit card", "debit card", "one-time code", "otp"
+    };
+
+    private static bool IsDangerousElementName(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return false;
+        }
+
+        var normalized = $" {name.Trim().ToLowerInvariant()} ";
+        return DangerousElementWords.Any(word => normalized.Contains($" {word} ", StringComparison.Ordinal));
+    }
+
+    private static bool IsCredentialFieldName(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return false;
+        }
+
+        var normalized = name.Trim().ToLowerInvariant();
+        return CredentialFieldWords.Any(word => normalized.Contains(word, StringComparison.Ordinal));
+    }
+
+    private static bool HasBlockedWebScheme(string? target)
+    {
+        if (string.IsNullOrWhiteSpace(target))
+        {
+            return true;
+        }
+
+        var value = target.Trim();
+        if (value.StartsWith("javascript:", StringComparison.OrdinalIgnoreCase) ||
+            value.StartsWith("data:", StringComparison.OrdinalIgnoreCase) ||
+            value.StartsWith("vbscript:", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var schemeEnd = value.IndexOf("://", StringComparison.Ordinal);
+        if (schemeEnd <= 0)
+        {
+            return false;
+        }
+
+        var scheme = value[..schemeEnd];
+        return !scheme.Equals("http", StringComparison.OrdinalIgnoreCase) &&
+               !scheme.Equals("https", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool UrlContainsCredentials(string? target)
+    {
+        if (string.IsNullOrWhiteSpace(target))
+        {
+            return false;
+        }
+
+        var value = target.Trim();
+        var schemeEnd = value.IndexOf("://", StringComparison.Ordinal);
+        if (schemeEnd < 0)
+        {
+            return false;
+        }
+
+        var authority = value[(schemeEnd + 3)..];
+        var pathStart = authority.IndexOfAny(new[] { '/', '?', '#' });
+        if (pathStart >= 0)
+        {
+            authority = authority[..pathStart];
+        }
+
+        return authority.Contains('@');
+    }
+
+    private static bool IsDangerousShortcut(string? keys)
+    {
+        if (string.IsNullOrWhiteSpace(keys))
+        {
+            return false;
+        }
+
+        var normalized = keys.Replace(" ", string.Empty, StringComparison.Ordinal).ToLowerInvariant();
+        return normalized.Contains("alt+f4", StringComparison.Ordinal) ||
+               normalized.Contains("win+r", StringComparison.Ordinal) ||
+               normalized.Contains("windows+r", StringComparison.Ordinal) ||
+               normalized.Contains("ctrl+shift+enter", StringComparison.Ordinal);
+    }
+
+    private static PolicyDecision Allow(RiskLevel risk, bool requiresConfirmation, string reason)
+    {
+        return new PolicyDecision(true, requiresConfirmation, risk, reason);
+    }
+
+    private static PolicyDecision Block(RiskLevel risk, string reason)
+    {
+        return new PolicyDecision(false, false, risk, reason);
+    }
+}

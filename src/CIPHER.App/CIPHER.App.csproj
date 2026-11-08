@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AssemblyName>CIPHER</AssemblyName>
+    <RootNamespace>CIPHER.App</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CIPHER.Core\CIPHER.Core.csproj" />
+    <ProjectReference Include="..\CIPHER.Actions\CIPHER.Actions.csproj" />
+    <ProjectReference Include="..\CIPHER.Browser\CIPHER.Browser.csproj" />
+    <ProjectReference Include="..\CIPHER.Voice\CIPHER.Voice.csproj" />
+    <ProjectReference Include="..\CIPHER.Memory\CIPHER.Memory.csproj" />
+    <ProjectReference Include="..\CIPHER.Delegation\CIPHER.Delegation.csproj" />
+  </ItemGroup>
+
+</Project>
