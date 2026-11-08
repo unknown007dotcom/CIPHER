@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
 using CIPHER.Actions;
+using CIPHER.Browser;
 using CIPHER.Core;
 
 namespace CIPHER.App.ViewModels;
@@ -11,6 +12,7 @@ public sealed class MainWindowViewModel : ObservableObject
 {
     private readonly ISettingsStore _settingsStore;
     private readonly IActionExecutor[] _executors;
+    private readonly BrowserActionExecutor _browserExecutor;
     private AssistantSettings _settings = new();
     private CancellationTokenSource? _cancellationTokenSource;
 
@@ -33,10 +35,14 @@ public sealed class MainWindowViewModel : ObservableObject
     public MainWindowViewModel(ISettingsStore settingsStore)
     {
         _settingsStore = settingsStore ?? throw new ArgumentNullException(nameof(settingsStore));
+        // The browser session starts lazily on the first browser command and runs
+        // headed in the app so the user can see and take over the page at any time.
+        _browserExecutor = new BrowserActionExecutor(new BrowserSessionOptions { Headless = false });
         _executors = new IActionExecutor[]
         {
             new BuiltInActionExecutor(),
-            new WindowsActionExecutor()
+            new WindowsActionExecutor(),
+            _browserExecutor
         };
 
         Conversation = new ObservableCollection<string>
@@ -165,6 +171,19 @@ public sealed class MainWindowViewModel : ObservableObject
     public void RequestCancellation()
     {
         _cancellationTokenSource?.Cancel();
+    }
+
+    /// <summary>Closes the lazily started browser session, if one was ever opened.</summary>
+    public async Task ShutdownAsync()
+    {
+        try
+        {
+            await _browserExecutor.DisposeAsync().ConfigureAwait(false);
+        }
+        catch (Exception)
+        {
+            // Browser shutdown must never block application exit.
+        }
     }
 
     /// <summary>Adds a shell-level status note (tray, hotkey) to the conversation.</summary>

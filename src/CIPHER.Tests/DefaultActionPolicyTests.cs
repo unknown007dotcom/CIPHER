@@ -148,6 +148,65 @@ public sealed class DefaultActionPolicyTests
     }
 
     [Fact]
+    public void OpeningFtpWebsite_IsBlocked()
+    {
+        var command = new ParsedCommand(
+            "open website ftp://example.com",
+            "open website ftp://example.com",
+            IntentKind.OpenWebsite,
+            Target: "ftp://example.com");
+
+        var decision = _policy.Evaluate(command, _context);
+
+        Assert.False(decision.IsAllowed);
+    }
+
+    [Fact]
+    public void OpeningWebsiteWithEmbeddedCredentials_IsBlocked()
+    {
+        var command = new ParsedCommand(
+            "open website",
+            "open website",
+            IntentKind.OpenWebsite,
+            Target: "https://user:secret@example.com");
+
+        var decision = _policy.Evaluate(command, _context);
+
+        Assert.False(decision.IsAllowed);
+    }
+
+    [Fact]
+    public void FillingBrowserPasswordField_IsBlocked()
+    {
+        var command = new ParsedCommand(
+            "browser fill Password",
+            "browser fill Password",
+            IntentKind.BrowserFillField,
+            Target: "Password",
+            Argument: "hunter2");
+
+        var decision = _policy.Evaluate(command, _context);
+
+        Assert.False(decision.IsAllowed);
+        Assert.Equal(RiskLevel.Critical, decision.Risk);
+    }
+
+    [Fact]
+    public void ClickingDangerousBrowserElement_RequiresConfirmation()
+    {
+        var command = new ParsedCommand(
+            "browser click Pay now",
+            "browser click Pay now",
+            IntentKind.BrowserClickElement,
+            Target: "Pay now");
+
+        var decision = _policy.Evaluate(command, _context);
+
+        Assert.True(decision.IsAllowed);
+        Assert.True(decision.RequiresConfirmation);
+    }
+
+    [Fact]
     public void OpeningOrdinaryApplication_DoesNotRequireConfirmation()
     {
         var command = new ParsedCommand(

@@ -21,6 +21,7 @@ public sealed class BuiltInActionExecutor : IActionExecutor
                 "Supported commands: open <app>, close <app>, switch to <window>, type <text>, " +
                 "press <keys>, read text in <window>, verify <window> contains <text>, " +
                 "click <name> button in <window>, type <text> into <field> in <window>, " +
+                "open website <url>, read page text, browser click <name>, browser fill <field> with <text>, browser download <link>, " +
                 "create folder <path>, create file <path>, list files in <path>, " +
                 "copy <source> to <destination>, move <source> to <destination>, " +
                 "rename <source> to <destination>, delete <path>, time, date, and system info.",

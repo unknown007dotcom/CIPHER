@@ -13,6 +13,10 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CIPHER.Tests", "src\CIPHER.
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CIPHER.MilestoneTest", "src\CIPHER.MilestoneTest\CIPHER.MilestoneTest.csproj", "{A9C7B002-9C20-4279-8FAA-73C69185A8BC}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CIPHER.Browser", "src\CIPHER.Browser\CIPHER.Browser.csproj", "{1F0188E7-E68B-4E04-890B-2955D4DD1ED1}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CIPHER.BrowserTest", "src\CIPHER.BrowserTest\CIPHER.BrowserTest.csproj", "{7400550B-574A-40EE-BD6E-A70C151D7F40}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -39,6 +43,14 @@ Global
 		{A9C7B002-9C20-4279-8FAA-73C69185A8BC}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A9C7B002-9C20-4279-8FAA-73C69185A8BC}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{A9C7B002-9C20-4279-8FAA-73C69185A8BC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1F0188E7-E68B-4E04-890B-2955D4DD1ED1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1F0188E7-E68B-4E04-890B-2955D4DD1ED1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1F0188E7-E68B-4E04-890B-2955D4DD1ED1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1F0188E7-E68B-4E04-890B-2955D4DD1ED1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7400550B-574A-40EE-BD6E-A70C151D7F40}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7400550B-574A-40EE-BD6E-A70C151D7F40}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7400550B-574A-40EE-BD6E-A70C151D7F40}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7400550B-574A-40EE-BD6E-A70C151D7F40}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

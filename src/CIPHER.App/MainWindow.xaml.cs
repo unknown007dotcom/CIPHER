@@ -183,6 +183,7 @@ public partial class MainWindow : Window
     private void MainWindow_Closing(object? sender, CancelEventArgs e)
     {
         _viewModel.RequestCancellation();
+        _ = _viewModel.ShutdownAsync();
         _viewModel.PropertyChanged -= ViewModel_PropertyChanged;
 
         if (_hotkeyRegistered)

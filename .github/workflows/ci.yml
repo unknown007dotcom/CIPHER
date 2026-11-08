@@ -122,6 +122,14 @@ jobs:
         timeout-minutes: 3
         run: ./src/CIPHER.MilestoneTest/bin/Release/net10.0-windows/CIPHER.MilestoneTest.exe stage4 --app ./src/CIPHER.App/bin/Release/net10.0-windows/CIPHER.exe
 
+      - name: Install Playwright Chromium for Stage 5 harness
+        run: pwsh src/CIPHER.BrowserTest/bin/Release/net10.0/playwright.ps1 install chromium
+
+      - name: Run Stage 5 browser harness (experimental, local test pages)
+        continue-on-error: true
+        timeout-minutes: 5
+        run: ./src/CIPHER.BrowserTest/bin/Release/net10.0/CIPHER.BrowserTest.exe
+
       - name: Publish Windows x64 app (framework-dependent validation build)
         run: >-
           dotnet publish src/CIPHER.App/CIPHER.App.csproj

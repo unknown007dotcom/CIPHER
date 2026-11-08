@@ -141,7 +141,52 @@ public sealed class DefaultActionPolicy : IActionPolicy
 
                 return Allow(RiskLevel.Medium, false, "The user explicitly requested text entry into a named field.");
 
+            case IntentKind.OpenWebsite:
+                if (HasBlockedWebScheme(command.Target))
+                {
+                    return Block(
+                        RiskLevel.High,
+                        "Only http and https websites can be opened. Local files, scripts, and other schemes are not opened in the browser.");
+                }
+
+                if (UrlContainsCredentials(command.Target))
+                {
+                    return Block(
+                        RiskLevel.High,
+                        "URLs containing embedded credentials are not opened. Sign in through the website itself.");
+                }
+
+                return Allow(RiskLevel.Medium, false, "Opening a web page in the user's browser session is permitted.");
+
+            case IntentKind.BrowserClickElement:
+                if (IsDangerousElementName(command.Target))
+                {
+                    return Allow(
+                        RiskLevel.High,
+                        requiresConfirmation: true,
+                        $"'{command.Target}' can perform a destructive or externally visible action and requires confirmation.");
+                }
+
+                return Allow(RiskLevel.Medium, false, "The user explicitly requested clicking this browser element.");
+
+            case IntentKind.BrowserFillField:
+                if (IsCredentialFieldName(command.Target))
+                {
+                    return Block(
+                        RiskLevel.Critical,
+                        "CIPHER does not fill password, PIN, or payment fields. Enter those values yourself.");
+                }
+
+                return Allow(RiskLevel.Medium, false, "The user explicitly requested filling a browser field.");
+
+            case IntentKind.BrowserDownload:
+                return Allow(
+                    RiskLevel.Medium,
+                    false,
+                    "Downloading through an explicitly requested link is permitted. Downloaded files are never executed automatically.");
+
             case IntentKind.SwitchWindow:
+            case IntentKind.ReadWebPage:
             case IntentKind.ReadWindowText:
             case IntentKind.VerifyWindowText:
             case IntentKind.ListDirectory:
@@ -188,6 +233,56 @@ public sealed class DefaultActionPolicy : IActionPolicy
 
         var normalized = name.Trim().ToLowerInvariant();
         return CredentialFieldWords.Any(word => normalized.Contains(word, StringComparison.Ordinal));
+    }
+
+    private static bool HasBlockedWebScheme(string? target)
+    {
+        if (string.IsNullOrWhiteSpace(target))
+        {
+            return true;
+        }
+
+        var value = target.Trim();
+        if (value.StartsWith("javascript:", StringComparison.OrdinalIgnoreCase) ||
+            value.StartsWith("data:", StringComparison.OrdinalIgnoreCase) ||
+            value.StartsWith("vbscript:", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var schemeEnd = value.IndexOf("://", StringComparison.Ordinal);
+        if (schemeEnd <= 0)
+        {
+            return false;
+        }
+
+        var scheme = value[..schemeEnd];
+        return !scheme.Equals("http", StringComparison.OrdinalIgnoreCase) &&
+               !scheme.Equals("https", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool UrlContainsCredentials(string? target)
+    {
+        if (string.IsNullOrWhiteSpace(target))
+        {
+            return false;
+        }
+
+        var value = target.Trim();
+        var schemeEnd = value.IndexOf("://", StringComparison.Ordinal);
+        if (schemeEnd < 0)
+        {
+            return false;
+        }
+
+        var authority = value[(schemeEnd + 3)..];
+        var pathStart = authority.IndexOfAny(new[] { '/', '?', '#' });
+        if (pathStart >= 0)
+        {
+            authority = authority[..pathStart];
+        }
+
+        return authority.Contains('@');
     }
 
     private static bool IsDangerousShortcut(string? keys)

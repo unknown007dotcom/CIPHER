@@ -121,6 +121,63 @@ public sealed class DeterministicCommandParserTests
         Assert.Null(command.SecondaryTarget);
     }
 
+    [Fact]
+    public void Parse_OpenWebsiteWithScheme()
+    {
+        var command = _parser.Parse("open website https://example.com/docs", _context);
+
+        Assert.Equal(IntentKind.OpenWebsite, command.Intent);
+        Assert.Equal("https://example.com/docs", command.Target);
+    }
+
+    [Fact]
+    public void Parse_OpenBareDomainIsWebsite()
+    {
+        var command = _parser.Parse("open learn.microsoft.com", _context);
+
+        Assert.Equal(IntentKind.OpenWebsite, command.Intent);
+        Assert.Equal("learn.microsoft.com", command.Target);
+    }
+
+    [Fact]
+    public void Parse_OpenTextFileIsNotWebsite()
+    {
+        var command = _parser.Parse("open notes.txt", _context);
+
+        Assert.NotEqual(IntentKind.OpenWebsite, command.Intent);
+    }
+
+    [Fact]
+    public void Parse_BrowserFill()
+    {
+        var command = _parser.Parse("browser fill Email with ada@example.com", _context);
+
+        Assert.Equal(IntentKind.BrowserFillField, command.Intent);
+        Assert.Equal("Email", command.Target);
+        Assert.Equal("ada@example.com", command.Argument);
+    }
+
+    [Fact]
+    public void Parse_BrowserClickAndDownload()
+    {
+        var click = _parser.Parse("browser click Submit registration", _context);
+        var download = _parser.Parse("browser download Download hello.txt", _context);
+
+        Assert.Equal(IntentKind.BrowserClickElement, click.Intent);
+        Assert.Equal("Submit registration", click.Target);
+        Assert.Equal(IntentKind.BrowserDownload, download.Intent);
+        Assert.Equal("Download hello.txt", download.Target);
+    }
+
+    [Fact]
+    public void Parse_ReadPageText()
+    {
+        var command = _parser.Parse("read page text", _context);
+
+        Assert.Equal(IntentKind.ReadWebPage, command.Intent);
+        Assert.Equal("text", command.Argument);
+    }
+
     [Theory]
     [InlineData("what time is it", IntentKind.GetTime)]
     [InlineData("what is the date", IntentKind.GetDate)]

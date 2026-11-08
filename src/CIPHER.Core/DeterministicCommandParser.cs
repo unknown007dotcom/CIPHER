@@ -324,10 +324,92 @@ public sealed class DeterministicCommandParser : ICommandParser
                 confidence: 0.95);
         }
 
+        match = Match(commandText, "^(?:open website|browse to|go to|navigate to|visit)\\s+(?<target>.+)$");
+        if (match.Success)
+        {
+            var target = CleanTarget(match.Groups["target"].Value);
+            return Create(
+                original,
+                commandText,
+                IntentKind.OpenWebsite,
+                target: target,
+                risk: RiskLevel.Medium,
+                summary: $"Open website {target}",
+                confidence: 0.96);
+        }
+
+        if (IsMatch(matchText, "^(read|get|show)( the)?( web ?page| page)( title| text| content)?$") ||
+            IsMatch(matchText, "^what is the page( title| text)?$"))
+        {
+            var wantsTitle = matchText.Contains("title", StringComparison.OrdinalIgnoreCase);
+            return Create(
+                original,
+                commandText,
+                IntentKind.ReadWebPage,
+                argument: wantsTitle ? "title" : "text",
+                summary: wantsTitle ? "Read the current page title" : "Read the current page text",
+                confidence: 0.95);
+        }
+
+        match = Match(commandText, "^browser click\\s+(?<target>.+)$");
+        if (match.Success)
+        {
+            var target = CleanTarget(match.Groups["target"].Value);
+            return Create(
+                original,
+                commandText,
+                IntentKind.BrowserClickElement,
+                target: target,
+                risk: RiskLevel.Medium,
+                summary: $"Click '{target}' in the browser",
+                confidence: 0.94);
+        }
+
+        match = Match(commandText, "^browser fill\\s+(?<target>.+?)\\s+with\\s+(?<text>.+)$");
+        if (match.Success)
+        {
+            var target = CleanTarget(match.Groups["target"].Value);
+            return Create(
+                original,
+                commandText,
+                IntentKind.BrowserFillField,
+                target: target,
+                argument: match.Groups["text"].Value.Trim(),
+                risk: RiskLevel.Medium,
+                summary: $"Fill the '{target}' field in the browser",
+                confidence: 0.94);
+        }
+
+        match = Match(commandText, "^browser download\\s+(?<target>.+)$");
+        if (match.Success)
+        {
+            var target = CleanTarget(match.Groups["target"].Value);
+            return Create(
+                original,
+                commandText,
+                IntentKind.BrowserDownload,
+                target: target,
+                risk: RiskLevel.Medium,
+                summary: $"Download via '{target}' in the browser",
+                confidence: 0.94);
+        }
+
         match = Match(commandText, "^(?:open|launch|start)\\s+(?:the\\s+)?(?<target>.+)$");
         if (match.Success)
         {
             var target = CleanTarget(match.Groups["target"].Value);
+            if (LooksLikeUrl(target))
+            {
+                return Create(
+                    original,
+                    commandText,
+                    IntentKind.OpenWebsite,
+                    target: target,
+                    risk: RiskLevel.Medium,
+                    summary: $"Open website {target}",
+                    confidence: 0.94);
+            }
+
             if (LooksLikePath(target))
             {
                 return Create(
@@ -419,6 +501,36 @@ public sealed class DeterministicCommandParser : ICommandParser
     private static string CleanPathTarget(string value)
     {
         return PathSafety.Unquote(WakeWordDetector.NormalizeWhitespace(value)).Trim();
+    }
+
+    private static readonly HashSet<string> WebTopLevelDomains = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "com", "org", "net", "io", "dev", "ai", "app", "co", "edu", "gov",
+        "info", "me", "us", "uk", "de", "jp", "in", "au", "ca", "xyz", "online", "site"
+    };
+
+    private static bool LooksLikeUrl(string value)
+    {
+        var result = PathSafety.Unquote(value.Trim());
+        if (result.Contains(' '))
+        {
+            return false;
+        }
+
+        if (result.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+            result.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
+            result.StartsWith("www.", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        // Bare domain such as example.com or learn.microsoft.com/docs — but not a
+        // local file name like notes.txt (txt is not a web TLD in the list above).
+        var host = result.Split('/', '?', '#')[0];
+        var lastDot = host.LastIndexOf('.');
+        return lastDot > 0 &&
+               lastDot < host.Length - 1 &&
+               WebTopLevelDomains.Contains(host[(lastDot + 1)..]);
     }
 
     private static bool LooksLikePath(string value)
