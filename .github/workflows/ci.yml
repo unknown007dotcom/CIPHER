@@ -80,6 +80,22 @@ jobs:
             Write-Host "::error title=Failed test $escapedTest::$escapedMessage"
           }
 
+      - name: Validate Windows batch scripts
+        shell: cmd
+        run: |
+          call setup-dev.bat
+          if errorlevel 2 exit /b 1
+          call build.bat Release
+          if errorlevel 1 exit /b 1
+          call test.bat Release
+          if errorlevel 1 exit /b 1
+          call package.bat Release
+          if not errorlevel 1 (
+            echo package.bat unexpectedly succeeded before the offline installer stage was complete.
+            exit /b 1
+          )
+          echo package.bat correctly refused to create an installer before Stage 10 dependencies were ready.
+
       - name: Publish Windows x64 app (framework-dependent validation build)
         run: >-
           dotnet publish src/CIPHER.App/CIPHER.App.csproj
