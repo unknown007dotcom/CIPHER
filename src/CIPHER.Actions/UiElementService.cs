@@ -190,13 +190,6 @@ public sealed class UiElementService
             return FinishActivation(element, "ExpandCollapsePattern");
         }
 
-        if (element.TryGetCurrentPattern(LegacyIAccessiblePattern.Pattern, out var legacyObject) &&
-            legacyObject is LegacyIAccessiblePattern legacy)
-        {
-            legacy.DoDefaultAction();
-            return FinishActivation(element, "LegacyIAccessiblePattern");
-        }
-
         if (element.TryGetClickablePoint(out Point point))
         {
             _inputService.ClickAt(point.X, point.Y);

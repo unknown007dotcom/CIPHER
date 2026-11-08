@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
+using System.Windows.Automation;
 using CIPHER.Core;
 
 namespace CIPHER.Actions;
@@ -587,7 +588,7 @@ public sealed class WindowsActionExecutor : IActionExecutor
     /// Resolves the window an element command applies to: the explicitly named window
     /// (which is focused first), or the current foreground window.
     /// </summary>
-    private System.Windows.Automation.AutomationElement? ResolveScopeWindow(
+    private AutomationElement? ResolveScopeWindow(
         ParsedCommand command,
         out ActionResult? error)
     {
