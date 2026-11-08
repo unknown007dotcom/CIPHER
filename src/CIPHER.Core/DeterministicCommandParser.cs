@@ -230,6 +230,40 @@ public sealed class DeterministicCommandParser : ICommandParser
                 confidence: 0.97);
         }
 
+        if (IsMatch(matchText, "^(verify|check) audit log$"))
+        {
+            return Create(
+                original,
+                commandText,
+                IntentKind.VerifyAuditLog,
+                summary: "Verify the local audit log",
+                confidence: 0.97);
+        }
+
+        if (IsMatch(matchText, "^(list|show) quarantine$"))
+        {
+            return Create(
+                original,
+                commandText,
+                IntentKind.ListQuarantine,
+                summary: "List items in CIPHER quarantine",
+                confidence: 0.97);
+        }
+
+        match = Match(commandText, "^restore\\s+(?:from\\s+quarantine\\s+|quarantined\\s+)?(?<target>.+)$");
+        if (match.Success)
+        {
+            var target = CleanTarget(match.Groups["target"].Value);
+            return Create(
+                original,
+                commandText,
+                IntentKind.RestoreQuarantineItem,
+                target: target,
+                risk: RiskLevel.Medium,
+                summary: $"Restore '{target}' from quarantine",
+                confidence: 0.93);
+        }
+
         match = Match(commandText, "^(?:list|show|display)(?:\\s+files)?(?:\\s+(?:in|inside|from))?\\s+(?<target>.+)$");
         if (match.Success)
         {
@@ -336,40 +370,6 @@ public sealed class DeterministicCommandParser : ICommandParser
                 risk: RiskLevel.High,
                 summary: $"Ask external AI: {TruncateForSummary(prompt)}",
                 confidence: 0.95);
-        }
-
-        if (IsMatch(matchText, "^(verify|check) audit log$"))
-        {
-            return Create(
-                original,
-                commandText,
-                IntentKind.VerifyAuditLog,
-                summary: "Verify the local audit log",
-                confidence: 0.97);
-        }
-
-        if (IsMatch(matchText, "^(list|show) quarantine$"))
-        {
-            return Create(
-                original,
-                commandText,
-                IntentKind.ListQuarantine,
-                summary: "List items in CIPHER quarantine",
-                confidence: 0.97);
-        }
-
-        match = Match(commandText, "^restore\\s+(?:from\\s+quarantine\\s+|quarantined\\s+)?(?<target>.+)$");
-        if (match.Success)
-        {
-            var target = CleanTarget(match.Groups["target"].Value);
-            return Create(
-                original,
-                commandText,
-                IntentKind.RestoreQuarantineItem,
-                target: target,
-                risk: RiskLevel.Medium,
-                summary: $"Restore '{target}' from quarantine",
-                confidence: 0.93);
         }
 
         match = Match(commandText, "^(?:open website|browse to|go to|navigate to|visit)\\s+(?<target>.+)$");
