@@ -1,5 +1,6 @@
 using CIPHER.Core;
 using Xunit;
+using TaskStatus = CIPHER.Core.TaskStatus;
 
 namespace CIPHER.Tests;
 
