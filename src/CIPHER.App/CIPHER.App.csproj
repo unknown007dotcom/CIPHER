@@ -20,6 +20,7 @@
     <ProjectReference Include="..\CIPHER.Browser\CIPHER.Browser.csproj" />
     <ProjectReference Include="..\CIPHER.Voice\CIPHER.Voice.csproj" />
     <ProjectReference Include="..\CIPHER.Memory\CIPHER.Memory.csproj" />
+    <ProjectReference Include="..\CIPHER.Delegation\CIPHER.Delegation.csproj" />
   </ItemGroup>
 
 </Project>
