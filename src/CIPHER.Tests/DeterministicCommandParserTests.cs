@@ -40,6 +40,35 @@ public sealed class DeterministicCommandParserTests
         Assert.Equal("Ctrl+S", command.Argument);
     }
 
+    [Fact]
+    public void Parse_ReadWindowText()
+    {
+        var command = _parser.Parse("read text in Notepad", _context);
+
+        Assert.Equal(IntentKind.ReadWindowText, command.Intent);
+        Assert.Equal("Notepad", command.Target);
+    }
+
+    [Fact]
+    public void Parse_VerifyWindowText()
+    {
+        var command = _parser.Parse("verify Notepad contains CIPHER milestone test", _context);
+
+        Assert.Equal(IntentKind.VerifyWindowText, command.Intent);
+        Assert.Equal("Notepad", command.Target);
+        Assert.Equal("CIPHER milestone test", command.Argument);
+    }
+
+    [Fact]
+    public void Parse_VerifyWindowText_WithIfPhrasing()
+    {
+        var command = _parser.Parse("check if Notepad still contains hello world", _context);
+
+        Assert.Equal(IntentKind.VerifyWindowText, command.Intent);
+        Assert.Equal("Notepad", command.Target);
+        Assert.Equal("hello world", command.Argument);
+    }
+
     [Theory]
     [InlineData("what time is it", IntentKind.GetTime)]
     [InlineData("what is the date", IntentKind.GetDate)]

@@ -148,6 +148,10 @@
                                Foreground="#FACC15"
                                Margin="10,4"
                                TextWrapping="Wrap" />
+                    <TextBlock Text="Global hotkey: Ctrl+Alt+C shows or hides CIPHER. The tray icon also restores or exits CIPHER."
+                               Foreground="#CBD5E1"
+                               Margin="10,4"
+                               TextWrapping="Wrap" />
                     <Button Content="Save settings"
                             Command="{Binding SaveSettingsCommand}"
                             HorizontalAlignment="Left"

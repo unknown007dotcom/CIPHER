@@ -78,6 +78,25 @@ public sealed class DefaultActionPolicyTests
         Assert.Equal(RiskLevel.High, decision.Risk);
     }
 
+    [Theory]
+    [InlineData(IntentKind.ReadWindowText)]
+    [InlineData(IntentKind.VerifyWindowText)]
+    public void ReadingWindowText_IsLowRiskAndDoesNotRequireConfirmation(IntentKind intent)
+    {
+        var command = new ParsedCommand(
+            "read window text",
+            "read window text",
+            intent,
+            Target: "Notepad",
+            Argument: "expected text");
+
+        var decision = _policy.Evaluate(command, _context);
+
+        Assert.True(decision.IsAllowed);
+        Assert.False(decision.RequiresConfirmation);
+        Assert.Equal(RiskLevel.Low, decision.Risk);
+    }
+
     [Fact]
     public void OpeningOrdinaryApplication_DoesNotRequireConfirmation()
     {

@@ -19,7 +19,8 @@ public sealed class BuiltInActionExecutor : IActionExecutor
         {
             IntentKind.Help => ActionResult.Ok(
                 "Supported commands: open <app>, close <app>, switch to <window>, type <text>, " +
-                "press <keys>, create folder <path>, create file <path>, list files in <path>, " +
+                "press <keys>, read text in <window>, verify <window> contains <text>, " +
+                "create folder <path>, create file <path>, list files in <path>, " +
                 "copy <source> to <destination>, move <source> to <destination>, " +
                 "rename <source> to <destination>, delete <path>, time, date, and system info.",
                 verified: true,

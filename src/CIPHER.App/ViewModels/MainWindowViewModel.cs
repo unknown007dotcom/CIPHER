@@ -167,6 +167,13 @@ public sealed class MainWindowViewModel : ObservableObject
         _cancellationTokenSource?.Cancel();
     }
 
+    /// <summary>Adds a shell-level status note (tray, hotkey) to the conversation.</summary>
+    public void AddStatusMessage(string message)
+    {
+        AddConversation($"CIPHER: {message}");
+        ProgressText = message;
+    }
+
     private async Task ExecuteAsync()
     {
         var text = Input.Trim();

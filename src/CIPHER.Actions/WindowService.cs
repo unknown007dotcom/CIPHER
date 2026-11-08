@@ -119,6 +119,24 @@ public sealed class WindowService
         }
     }
 
+    public AutomationElement? GetForegroundElement()
+    {
+        var handle = NativeMethods.GetForegroundWindow();
+        if (handle == IntPtr.Zero)
+        {
+            return null;
+        }
+
+        try
+        {
+            return AutomationElement.FromHandle(handle);
+        }
+        catch (ElementNotAvailableException)
+        {
+            return null;
+        }
+    }
+
     public WindowInfo? GetForegroundWindowInfo()
     {
         var handle = NativeMethods.GetForegroundWindow();

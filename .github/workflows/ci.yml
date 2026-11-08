@@ -112,6 +112,11 @@ jobs:
           echo package.bat correctly refused to create an installer before Stage 10 dependencies were ready.
           exit /b 0
 
+      - name: Run Notepad milestone harness (experimental, non-interactive session)
+        continue-on-error: true
+        timeout-minutes: 3
+        run: ./src/CIPHER.MilestoneTest/bin/Release/net10.0-windows/CIPHER.MilestoneTest.exe
+
       - name: Publish Windows x64 app (framework-dependent validation build)
         run: >-
           dotnet publish src/CIPHER.App/CIPHER.App.csproj

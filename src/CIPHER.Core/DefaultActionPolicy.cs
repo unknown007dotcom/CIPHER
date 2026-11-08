@@ -121,6 +121,8 @@ public sealed class DefaultActionPolicy : IActionPolicy
                 return Allow(RiskLevel.Medium, false, "Text entry was explicitly requested for the currently focused control.");
 
             case IntentKind.SwitchWindow:
+            case IntentKind.ReadWindowText:
+            case IntentKind.VerifyWindowText:
             case IntentKind.ListDirectory:
             case IntentKind.Help:
             case IntentKind.GetTime:

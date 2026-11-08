@@ -103,6 +103,47 @@ public sealed class DeterministicCommandParser : ICommandParser
                 confidence: 0.97);
         }
 
+        match = Match(commandText, "^(?:verify|check|confirm)\\s+(?:that\\s+|if\\s+)?(?<target>.+?)\\s+(?:still\\s+)?(?:contains|has)\\s+(?<text>.+)$");
+        if (match.Success)
+        {
+            var target = CleanTarget(match.Groups["target"].Value);
+            var expectedText = PathSafety.Unquote(match.Groups["text"].Value.Trim());
+            return Create(
+                original,
+                commandText,
+                IntentKind.VerifyWindowText,
+                target: target,
+                argument: expectedText,
+                summary: $"Verify that {target} contains the expected text",
+                confidence: 0.95);
+        }
+
+        match = Match(commandText, "^(?:read|get|show)\\s+(?:the\\s+)?(?:text|contents?)\\s+(?:in|from)\\s+(?:the\\s+)?(?<target>.+)$");
+        if (match.Success)
+        {
+            var target = CleanTarget(match.Groups["target"].Value);
+            return Create(
+                original,
+                commandText,
+                IntentKind.ReadWindowText,
+                target: target,
+                summary: $"Read the text shown in {target}",
+                confidence: 0.95);
+        }
+
+        match = Match(commandText, "^what does\\s+(?:the\\s+)?(?<target>.+?)\\s+say$");
+        if (match.Success)
+        {
+            var target = CleanTarget(match.Groups["target"].Value);
+            return Create(
+                original,
+                commandText,
+                IntentKind.ReadWindowText,
+                target: target,
+                summary: $"Read the text shown in {target}",
+                confidence: 0.93);
+        }
+
         match = Match(commandText, "^(?:create|make|new)\\s+(?:a\\s+)?(?:folder|directory)\\s+(?:in|inside)\\s+(?<location>.+?)\\s+(?:called|named)\\s+(?<name>.+)$");
         if (match.Success)
         {

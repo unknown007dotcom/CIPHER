@@ -13,16 +13,21 @@ public sealed class WindowsActionExecutor : IActionExecutor
 {
     private readonly WindowService _windowService;
     private readonly InputService _inputService;
+    private readonly TextControlService _textControlService;
 
     public WindowsActionExecutor()
-        : this(new WindowService(), new InputService())
+        : this(new WindowService(), new InputService(), new TextControlService())
     {
     }
 
-    public WindowsActionExecutor(WindowService windowService, InputService inputService)
+    public WindowsActionExecutor(
+        WindowService windowService,
+        InputService inputService,
+        TextControlService? textControlService = null)
     {
         _windowService = windowService ?? throw new ArgumentNullException(nameof(windowService));
         _inputService = inputService ?? throw new ArgumentNullException(nameof(inputService));
+        _textControlService = textControlService ?? new TextControlService();
     }
 
     public bool CanExecute(ParsedCommand command)
@@ -33,6 +38,8 @@ public sealed class WindowsActionExecutor : IActionExecutor
             IntentKind.SwitchWindow or
             IntentKind.TypeText or
             IntentKind.PressKeys or
+            IntentKind.ReadWindowText or
+            IntentKind.VerifyWindowText or
             IntentKind.OpenPath or
             IntentKind.CreateFolder or
             IntentKind.CreateFile or
@@ -74,6 +81,8 @@ public sealed class WindowsActionExecutor : IActionExecutor
             IntentKind.SwitchWindow => SwitchWindow(command),
             IntentKind.TypeText => TypeText(command),
             IntentKind.PressKeys => PressKeys(command),
+            IntentKind.ReadWindowText => ReadWindowText(command),
+            IntentKind.VerifyWindowText => VerifyWindowText(command),
             IntentKind.OpenPath => OpenPath(command, context),
             IntentKind.CreateFolder => CreateFolder(command, context),
             IntentKind.CreateFile => CreateFile(command, context),
@@ -295,11 +304,107 @@ public sealed class WindowsActionExecutor : IActionExecutor
             return ActionResult.Fail("No text was specified.", "TEXT_NOT_SPECIFIED");
         }
 
+        var foregroundBefore = _windowService.GetForegroundElement();
+        var textBefore = foregroundBefore is null ? null : _textControlService.ReadWindowText(foregroundBefore);
+
         _inputService.TypeText(command.Argument);
+        Thread.Sleep(150);
+
+        // Verify by reading the focused window's editor back through UI Automation.
+        // Typing is only reported as verified when the typed text is actually observed.
+        var foregroundAfter = _windowService.GetForegroundElement();
+        var textAfter = foregroundAfter is null ? null : _textControlService.ReadWindowText(foregroundAfter);
+
+        var occurrencesAfter = TextMatching.CountOccurrences(textAfter, command.Argument);
+        var verified = textAfter is not null &&
+                       TextMatching.ContainsText(textAfter, command.Argument) &&
+                       (textBefore is null || occurrencesAfter > TextMatching.CountOccurrences(textBefore, command.Argument));
+
         return ActionResult.Ok(
-            "Text was sent to the currently focused control.",
-            verified: false,
+            verified
+                ? "Text was typed and verified in the focused editor."
+                : "Text was sent to the currently focused control.",
+            verified: verified,
             data: new Dictionary<string, string> { ["characterCount"] = command.Argument.Length.ToString() });
+    }
+
+    private ActionResult ReadWindowText(ParsedCommand command)
+    {
+        if (string.IsNullOrWhiteSpace(command.Target))
+        {
+            return ActionResult.Fail("No window was specified.", "WINDOW_NOT_SPECIFIED");
+        }
+
+        var window = _windowService.FindWindow(command.Target);
+        if (window is null)
+        {
+            return ActionResult.Fail($"No visible window matching '{command.Target}' was found.", "WINDOW_NOT_FOUND");
+        }
+
+        var title = window.Current.Name;
+        var text = _textControlService.ReadWindowText(window);
+        if (text is null)
+        {
+            return ActionResult.Fail(
+                $"CIPHER found '{title}' but its text content is not readable through UI Automation.",
+                "TEXT_NOT_READABLE");
+        }
+
+        var displayText = text.Length <= 500 ? text : text[..500] + "…";
+        var message = text.Length == 0
+            ? $"The editor in '{title}' is empty."
+            : $"Text in '{title}': {displayText}";
+
+        return ActionResult.Ok(
+            message,
+            verified: true,
+            data: new Dictionary<string, string>
+            {
+                ["windowTitle"] = title,
+                ["characterCount"] = text.Length.ToString(),
+                ["text"] = text.Length <= 4_000 ? text : text[..4_000]
+            });
+    }
+
+    private ActionResult VerifyWindowText(ParsedCommand command)
+    {
+        if (string.IsNullOrWhiteSpace(command.Target))
+        {
+            return ActionResult.Fail("No window was specified.", "WINDOW_NOT_SPECIFIED");
+        }
+
+        if (string.IsNullOrWhiteSpace(command.Argument))
+        {
+            return ActionResult.Fail("No expected text was specified.", "TEXT_NOT_SPECIFIED");
+        }
+
+        var window = _windowService.FindWindow(command.Target);
+        if (window is null)
+        {
+            return ActionResult.Fail($"No visible window matching '{command.Target}' was found.", "WINDOW_NOT_FOUND");
+        }
+
+        var title = window.Current.Name;
+        var text = _textControlService.ReadWindowText(window);
+        if (text is null)
+        {
+            return ActionResult.Fail(
+                $"CIPHER found '{title}' but its text content is not readable through UI Automation, so the text could not be verified.",
+                "TEXT_NOT_READABLE");
+        }
+
+        if (TextMatching.ContainsText(text, command.Argument))
+        {
+            return ActionResult.Ok(
+                $"Verified: '{title}' contains the expected text.",
+                verified: true,
+                data: new Dictionary<string, string> { ["windowTitle"] = title });
+        }
+
+        var preview = text.Length <= 200 ? text : text[..200] + "…";
+        return ActionResult.Fail(
+            $"Verification failed: '{title}' does not contain the expected text. Current content begins: {preview}",
+            "TEXT_NOT_FOUND");
     }
 
     private ActionResult PressKeys(ParsedCommand command)

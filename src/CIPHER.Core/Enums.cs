@@ -37,6 +37,8 @@ public enum IntentKind
     SwitchWindow,
     TypeText,
     PressKeys,
+    ReadWindowText,
+    VerifyWindowText,
     OpenPath,
     CreateFolder,
     CreateFile,
