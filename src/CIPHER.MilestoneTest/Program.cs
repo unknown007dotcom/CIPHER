@@ -1,28 +1,42 @@
+using System.Diagnostics;
 using CIPHER.Actions;
 using CIPHER.Core;
 
 namespace CIPHER.MilestoneTest;
 
 /// <summary>
-/// Interactive Windows milestone harness for Stage 3. It performs the exact acceptance
-/// scenario from the CIPHER plan against the real desktop:
+/// Interactive Windows acceptance harnesses. Two modes:
 ///
-///   1. Launch Notepad.
-///   2. Identify its editor through UI Automation.
-///   3. Type a known sentence.
-///   4. Switch to another window.
-///   5. Return to Notepad.
-///   6. Verify through UI Automation read-back that the sentence is still present.
+///   (default)  Stage 3 Notepad milestone — launch Notepad, identify its editor through
+///              UI Automation, type a known sentence, switch windows, return, and verify
+///              the sentence through UI Automation read-back.
 ///
-/// Exit code 0 means every scored step passed. The harness refuses to type into a
-/// Notepad window that already contains text, so it cannot destroy user content.
+///   stage4     Stage 4 named-element targeting — click named Calculator buttons and
+///              confirm the display, then type into CIPHER's own named command field
+///              and click its named Clear button. Usage:
+///              CIPHER.MilestoneTest.exe stage4 --app &lt;path-to-CIPHER.exe&gt;
+///
+/// Exit codes: 0 = every scored step passed, 1 = a scored step failed,
+/// 3 = everything was skipped (targets unavailable in this environment).
+/// A harness refuses to type into a Notepad window that already contains user text.
 /// </summary>
 internal static class Program
 {
     private const string Sentence = "CIPHER milestone verification sentence.";
     private static readonly List<(string Name, bool Passed)> Steps = new();
+    private static readonly List<string> Skips = new();
 
-    private static async Task<int> Main()
+    private static async Task<int> Main(string[] args)
+    {
+        if (args.Any(arg => string.Equals(arg, "stage4", StringComparison.OrdinalIgnoreCase)))
+        {
+            return await RunStage4Async(args);
+        }
+
+        return await RunMilestoneAsync();
+    }
+
+    private static async Task<int> RunMilestoneAsync()
     {
         Console.WriteLine("CIPHER Stage 3 Notepad milestone harness");
         Console.WriteLine($"Sentence under test: {Sentence}");
@@ -30,10 +44,7 @@ internal static class Program
 
         var windowService = new WindowService();
         var textService = new TextControlService();
-        var engine = new TaskEngine(
-            new DeterministicCommandParser(),
-            new DefaultActionPolicy(),
-            new IActionExecutor[] { new BuiltInActionExecutor(), new WindowsActionExecutor() });
+        var engine = CreateEngine();
 
         try
         {
@@ -46,7 +57,7 @@ internal static class Program
                 {
                     Report("Precondition", false,
                         "Notepad already contains text. Refusing to modify an existing document.");
-                    return Finish();
+                    return FinishMilestone();
                 }
             }
 
@@ -67,7 +78,7 @@ internal static class Program
                     : $"ControlType={editor.Current.ControlType.ProgrammaticName}, ClassName={editor.Current.ClassName}");
             if (notepadWindow is null || editor is null)
             {
-                return Finish();
+                return FinishMilestone();
             }
 
             // 3. Focus Notepad.
@@ -115,8 +126,8 @@ internal static class Program
                 verifyResult.Status == CipherTaskStatus.Succeeded,
                 verifyResult.ActionResult?.Message ?? verifyResult.Policy.Reason);
 
-            await CleanupAsync(engine);
-            return Finish();
+            await CleanupMilestoneAsync(engine);
+            return FinishMilestone();
         }
         catch (Exception ex)
         {
@@ -126,7 +137,134 @@ internal static class Program
         }
     }
 
-    private static async Task CleanupAsync(TaskEngine engine)
+    private static async Task<int> RunStage4Async(string[] args)
+    {
+        Console.WriteLine("CIPHER Stage 4 named-element targeting harness");
+        Console.WriteLine();
+
+        var windowService = new WindowService();
+        var uiService = new UiElementService();
+        var engine = CreateEngine();
+
+        try
+        {
+            // Part A: click named Calculator buttons (Clear, 5, +, 3, =) and read the display.
+            var openCalc = await engine.ExecuteTextAsync("open Calculator");
+            await Task.Delay(1200);
+            var calcWindow = windowService.FindWindow("Calculator");
+            if (openCalc.ActionResult?.Success != true || calcWindow is null)
+            {
+                ReportSkip("Calculator button targeting",
+                    $"Calculator could not be opened here: {openCalc.ActionResult?.Message}");
+            }
+            else
+            {
+                Report("Open Calculator", true, openCalc.ActionResult?.Message ?? string.Empty);
+                foreach (var button in new[] { "Clear", "Five", "Plus", "Three", "Equals" })
+                {
+                    var click = await engine.ExecuteTextAsync($"click {button} button in Calculator");
+                    Report($"Click Calculator '{button}'",
+                        click.ActionResult?.Success == true,
+                        click.ActionResult?.Message ?? click.Policy.Reason);
+                }
+
+                calcWindow = windowService.FindWindow("Calculator");
+                var display = calcWindow is null ? null : uiService.FindElement(calcWindow, "Display is");
+                var displayName = display?.Element.Current.Name;
+                Report("Calculator display shows 8",
+                    displayName is not null && TextMatching.ContainsText(displayName, "8"),
+                    $"Display element name: '{displayName}'.");
+
+                var closeCalc = await engine.ExecuteTextAsync("close Calculator");
+                Console.WriteLine($"CLEANUP: Calculator close={(closeCalc.ActionResult?.Success == true ? "OK" : "not completed")}.");
+            }
+
+            // Part B: type into CIPHER's own named command field and click its Clear button.
+            var appPath = GetArgumentValue(args, "--app");
+            if (string.IsNullOrWhiteSpace(appPath) || !File.Exists(appPath))
+            {
+                ReportSkip("CIPHER field targeting", "CIPHER.exe path was not supplied or does not exist.");
+            }
+            else
+            {
+                using var process = Process.Start(new ProcessStartInfo
+                {
+                    FileName = appPath,
+                    UseShellExecute = true
+                });
+
+                var appWindow = await WaitForWindowAsync(windowService, "CIPHER", TimeSpan.FromSeconds(10));
+                Report("Launch CIPHER app", appWindow is not null, $"Path: {appPath}");
+                if (appWindow is not null)
+                {
+                    var typeInto = await engine.ExecuteTextAsync(
+                        "type STAGE4-FIELD-OK into CIPHER command input in CIPHER");
+                    Report("Type into 'CIPHER command input'",
+                        typeInto.Status == CipherTaskStatus.Succeeded,
+                        $"{typeInto.ActionResult?.Message} (verified={typeInto.ActionResult?.Verified})");
+
+                    var clickClear = await engine.ExecuteTextAsync("click Clear button in CIPHER");
+                    Report("Click CIPHER 'Clear' button",
+                        clickClear.ActionResult?.Success == true,
+                        clickClear.ActionResult?.Message ?? clickClear.Policy.Reason);
+
+                    var closeApp = await engine.ExecuteTextAsync("close CIPHER");
+                    Console.WriteLine($"CLEANUP: CIPHER close={(closeApp.ActionResult?.Success == true ? "OK" : "not completed")}.");
+                }
+            }
+
+            return FinishStage4();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"::error title=CIPHER Stage 4 element targeting::Harness exception: {ex.Message}");
+            Console.WriteLine($"STAGE4 RESULT: FAIL (exception: {ex.GetType().Name}: {ex.Message})");
+            return 1;
+        }
+    }
+
+    private static TaskEngine CreateEngine()
+    {
+        return new TaskEngine(
+            new DeterministicCommandParser(),
+            new DefaultActionPolicy(),
+            new IActionExecutor[] { new BuiltInActionExecutor(), new WindowsActionExecutor() });
+    }
+
+    private static async Task<System.Windows.Automation.AutomationElement?> WaitForWindowAsync(
+        WindowService windowService,
+        string title,
+        TimeSpan timeout)
+    {
+        var deadline = DateTimeOffset.UtcNow + timeout;
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            var window = windowService.FindWindow(title);
+            if (window is not null)
+            {
+                return window;
+            }
+
+            await Task.Delay(250);
+        }
+
+        return null;
+    }
+
+    private static string? GetArgumentValue(string[] args, string name)
+    {
+        for (var index = 0; index < args.Length - 1; index++)
+        {
+            if (string.Equals(args[index], name, StringComparison.OrdinalIgnoreCase))
+            {
+                return args[index + 1];
+            }
+        }
+
+        return null;
+    }
+
+    private static async Task CleanupMilestoneAsync(TaskEngine engine)
     {
         try
         {
@@ -152,7 +290,13 @@ internal static class Program
         Console.WriteLine($"STEP: {name} => {(passed ? "PASS" : "FAIL")} - {details}");
     }
 
-    private static int Finish()
+    private static void ReportSkip(string name, string reason)
+    {
+        Skips.Add($"{name}: {reason}");
+        Console.WriteLine($"STEP: {name} => SKIP - {reason}");
+    }
+
+    private static int FinishMilestone()
     {
         var passedCount = Steps.Count(step => step.Passed);
         var allPassed = Steps.Count > 0 && passedCount == Steps.Count;
@@ -163,6 +307,31 @@ internal static class Program
         Console.WriteLine(allPassed
             ? "::notice title=CIPHER Notepad milestone::PASS - launch, editor identification, typing, window switching, and UI Automation read-back verification all succeeded."
             : $"::error title=CIPHER Notepad milestone::FAIL - failed steps: {failedNames}");
+
+        return allPassed ? 0 : 1;
+    }
+
+    private static int FinishStage4()
+    {
+        var passedCount = Steps.Count(step => step.Passed);
+        var anyScored = Steps.Count > 0;
+        var allPassed = anyScored && passedCount == Steps.Count;
+        var resultWord = !anyScored ? "SKIP" : allPassed ? "PASS" : "FAIL";
+
+        Console.WriteLine();
+        Console.WriteLine($"STAGE4 RESULT: {resultWord} ({passedCount}/{Steps.Count} scored steps, {Skips.Count} skipped)");
+
+        if (!anyScored)
+        {
+            Console.WriteLine("::warning title=CIPHER Stage 4 element targeting::SKIP - no interactive targets were available in this environment.");
+            return 3;
+        }
+
+        var failedNames = string.Join(", ", Steps.Where(step => !step.Passed).Select(step => step.Name));
+        var skipNote = Skips.Count == 0 ? string.Empty : $" Skipped: {string.Join("; ", Skips)}";
+        Console.WriteLine(allPassed
+            ? $"::notice title=CIPHER Stage 4 element targeting::PASS - named button clicking and named field entry verified.{skipNote}"
+            : $"::error title=CIPHER Stage 4 element targeting::FAIL - failed steps: {failedNames}.{skipNote}");
 
         return allPassed ? 0 : 1;
     }

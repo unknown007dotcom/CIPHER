@@ -14,6 +14,7 @@ public sealed class WindowsActionExecutor : IActionExecutor
     private readonly WindowService _windowService;
     private readonly InputService _inputService;
     private readonly TextControlService _textControlService;
+    private readonly UiElementService _uiElementService;
 
     public WindowsActionExecutor()
         : this(new WindowService(), new InputService(), new TextControlService())
@@ -23,11 +24,13 @@ public sealed class WindowsActionExecutor : IActionExecutor
     public WindowsActionExecutor(
         WindowService windowService,
         InputService inputService,
-        TextControlService? textControlService = null)
+        TextControlService? textControlService = null,
+        UiElementService? uiElementService = null)
     {
         _windowService = windowService ?? throw new ArgumentNullException(nameof(windowService));
         _inputService = inputService ?? throw new ArgumentNullException(nameof(inputService));
         _textControlService = textControlService ?? new TextControlService();
+        _uiElementService = uiElementService ?? new UiElementService(inputService);
     }
 
     public bool CanExecute(ParsedCommand command)
@@ -40,6 +43,8 @@ public sealed class WindowsActionExecutor : IActionExecutor
             IntentKind.PressKeys or
             IntentKind.ReadWindowText or
             IntentKind.VerifyWindowText or
+            IntentKind.ClickUiElement or
+            IntentKind.TypeIntoUiElement or
             IntentKind.OpenPath or
             IntentKind.CreateFolder or
             IntentKind.CreateFile or
@@ -83,6 +88,8 @@ public sealed class WindowsActionExecutor : IActionExecutor
             IntentKind.PressKeys => PressKeys(command),
             IntentKind.ReadWindowText => ReadWindowText(command),
             IntentKind.VerifyWindowText => VerifyWindowText(command),
+            IntentKind.ClickUiElement => ClickUiElement(command),
+            IntentKind.TypeIntoUiElement => TypeIntoUiElement(command),
             IntentKind.OpenPath => OpenPath(command, context),
             IntentKind.CreateFolder => CreateFolder(command, context),
             IntentKind.CreateFile => CreateFile(command, context),
@@ -416,6 +423,200 @@ public sealed class WindowsActionExecutor : IActionExecutor
 
         _inputService.PressKeys(command.Argument);
         return ActionResult.Ok($"Pressed {command.Argument}.", verified: false);
+    }
+
+    private ActionResult ClickUiElement(ParsedCommand command)
+    {
+        if (string.IsNullOrWhiteSpace(command.Target))
+        {
+            return ActionResult.Fail("No control name was specified.", "ELEMENT_NOT_SPECIFIED");
+        }
+
+        var scope = ResolveScopeWindow(command, out var scopeError);
+        if (scope is null)
+        {
+            return scopeError!;
+        }
+
+        var match = _uiElementService.FindElement(scope, command.Target);
+        if (match is null)
+        {
+            return ActionResult.Fail(
+                $"No control named '{command.Target}' was found in '{scope.Current.Name}'.",
+                "ELEMENT_NOT_FOUND");
+        }
+
+        var element = match.Element;
+        if (!element.Current.IsEnabled)
+        {
+            return ActionResult.Fail(
+                $"The control '{command.Target}' in '{scope.Current.Name}' is disabled.",
+                "ELEMENT_DISABLED");
+        }
+
+        var stateBefore = UiElementService.ReadState(element);
+        var activation = _uiElementService.Activate(element);
+        if (!activation.Activated)
+        {
+            return ActionResult.Fail(
+                $"The control '{command.Target}' does not expose an activation pattern or clickable point.",
+                "ELEMENT_NOT_ACTIONABLE");
+        }
+
+        // A click is only "verified" when an observable state (toggle/selection/expansion)
+        // actually changed; otherwise the click was dispatched but its effect is unknown.
+        var verified = stateBefore is not null &&
+                       activation.StateAfter is not null &&
+                       !string.Equals(stateBefore, activation.StateAfter, StringComparison.Ordinal);
+
+        return ActionResult.Ok(
+            verified
+                ? $"Clicked '{command.Target}' in '{scope.Current.Name}' and verified its state changed ({stateBefore} → {activation.StateAfter})."
+                : $"Clicked '{command.Target}' in '{scope.Current.Name}' via {activation.Method}.",
+            verified: verified,
+            data: new Dictionary<string, string>
+            {
+                ["elementName"] = command.Target,
+                ["matchedBy"] = match.MatchedBy,
+                ["activationMethod"] = activation.Method,
+                ["windowTitle"] = scope.Current.Name
+            });
+    }
+
+    private ActionResult TypeIntoUiElement(ParsedCommand command)
+    {
+        if (string.IsNullOrWhiteSpace(command.Target))
+        {
+            return ActionResult.Fail("No field name was specified.", "ELEMENT_NOT_SPECIFIED");
+        }
+
+        if (command.Argument is null)
+        {
+            return ActionResult.Fail("No text was specified.", "TEXT_NOT_SPECIFIED");
+        }
+
+        var scope = ResolveScopeWindow(command, out var scopeError);
+        if (scope is null)
+        {
+            return scopeError!;
+        }
+
+        var match = _uiElementService.FindElement(scope, command.Target, preferTextEntry: true);
+        if (match is null)
+        {
+            return ActionResult.Fail(
+                $"No field named '{command.Target}' was found in '{scope.Current.Name}'.",
+                "ELEMENT_NOT_FOUND");
+        }
+
+        var element = match.Element;
+        if (element.Current.IsPassword)
+        {
+            return ActionResult.Fail(
+                "CIPHER does not type into password fields. Enter the value yourself.",
+                "CREDENTIAL_FIELD");
+        }
+
+        if (!element.Current.IsEnabled)
+        {
+            return ActionResult.Fail(
+                $"The field '{command.Target}' in '{scope.Current.Name}' is disabled.",
+                "ELEMENT_DISABLED");
+        }
+
+        // Preferred path: set the value semantically, then read it back.
+        if (element.TryGetCurrentPattern(ValuePattern.Pattern, out var valueObject) &&
+            valueObject is ValuePattern valuePattern &&
+            !valuePattern.Current.IsReadOnly)
+        {
+            valuePattern.SetValue(command.Argument);
+            Thread.Sleep(100);
+            var readBack = valuePattern.Current.Value;
+            var verified = string.Equals(
+                TextMatching.NormalizeForComparison(readBack),
+                TextMatching.NormalizeForComparison(command.Argument),
+                StringComparison.Ordinal);
+
+            return ActionResult.Ok(
+                verified
+                    ? $"Text was entered into '{command.Target}' in '{scope.Current.Name}' and verified."
+                    : $"Text was entered into '{command.Target}' in '{scope.Current.Name}', but the read-back differs.",
+                verified: verified,
+                data: new Dictionary<string, string>
+                {
+                    ["elementName"] = command.Target,
+                    ["matchedBy"] = match.MatchedBy,
+                    ["windowTitle"] = scope.Current.Name
+                });
+        }
+
+        // Fallback path: focus the field, select existing content, type, and read back.
+        try
+        {
+            element.SetFocus();
+        }
+        catch (InvalidOperationException)
+        {
+            return ActionResult.Fail(
+                $"The field '{command.Target}' cannot receive focus.",
+                "ELEMENT_NOT_FOCUSABLE");
+        }
+
+        Thread.Sleep(100);
+        _inputService.PressKeys("Ctrl+A");
+        _inputService.PressKeys("Delete");
+        _inputService.TypeText(command.Argument);
+        Thread.Sleep(150);
+
+        var textAfter = _textControlService.ReadText(element);
+        var keyboardVerified = TextMatching.ContainsText(textAfter, command.Argument);
+        return ActionResult.Ok(
+            keyboardVerified
+                ? $"Text was typed into '{command.Target}' in '{scope.Current.Name}' and verified."
+                : $"Text was typed into '{command.Target}' in '{scope.Current.Name}'.",
+            verified: keyboardVerified,
+            data: new Dictionary<string, string>
+            {
+                ["elementName"] = command.Target,
+                ["matchedBy"] = match.MatchedBy,
+                ["windowTitle"] = scope.Current.Name
+            });
+    }
+
+    /// <summary>
+    /// Resolves the window an element command applies to: the explicitly named window
+    /// (which is focused first), or the current foreground window.
+    /// </summary>
+    private System.Windows.Automation.AutomationElement? ResolveScopeWindow(
+        ParsedCommand command,
+        out ActionResult? error)
+    {
+        error = null;
+
+        if (!string.IsNullOrWhiteSpace(command.SecondaryTarget))
+        {
+            var window = _windowService.FindWindow(command.SecondaryTarget);
+            if (window is null)
+            {
+                error = ActionResult.Fail(
+                    $"No visible window matching '{command.SecondaryTarget}' was found.",
+                    "WINDOW_NOT_FOUND");
+                return null;
+            }
+
+            _windowService.Focus(window);
+            return window;
+        }
+
+        var foreground = _windowService.GetForegroundElement();
+        if (foreground is null)
+        {
+            error = ActionResult.Fail(
+                "No window was specified and no foreground window could be identified.",
+                "WINDOW_NOT_FOUND");
+        }
+
+        return foreground;
     }
 
     private ActionResult OpenPath(ParsedCommand command, CommandContext context)

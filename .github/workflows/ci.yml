@@ -117,6 +117,11 @@ jobs:
         timeout-minutes: 3
         run: ./src/CIPHER.MilestoneTest/bin/Release/net10.0-windows/CIPHER.MilestoneTest.exe
 
+      - name: Run Stage 4 element targeting harness (experimental, non-interactive session)
+        continue-on-error: true
+        timeout-minutes: 3
+        run: ./src/CIPHER.MilestoneTest/bin/Release/net10.0-windows/CIPHER.MilestoneTest.exe stage4 --app ./src/CIPHER.App/bin/Release/net10.0-windows/CIPHER.exe
+
       - name: Publish Windows x64 app (framework-dependent validation build)
         run: >-
           dotnet publish src/CIPHER.App/CIPHER.App.csproj

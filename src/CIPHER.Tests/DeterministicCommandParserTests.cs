@@ -69,6 +69,58 @@ public sealed class DeterministicCommandParserTests
         Assert.Equal("hello world", command.Argument);
     }
 
+    [Fact]
+    public void Parse_ClickElementInWindow()
+    {
+        var command = _parser.Parse("click Save button in Notepad", _context);
+
+        Assert.Equal(IntentKind.ClickUiElement, command.Intent);
+        Assert.Equal("Save button", command.Target);
+        Assert.Equal("Notepad", command.SecondaryTarget);
+    }
+
+    [Fact]
+    public void Parse_ClickElementWithoutWindow()
+    {
+        var command = _parser.Parse("click the OK button", _context);
+
+        Assert.Equal(IntentKind.ClickUiElement, command.Intent);
+        Assert.Equal("OK button", command.Target);
+        Assert.Null(command.SecondaryTarget);
+    }
+
+    [Fact]
+    public void Parse_ClickElementNameContainingIn()
+    {
+        var command = _parser.Parse("click Sign in button in Calculator", _context);
+
+        Assert.Equal(IntentKind.ClickUiElement, command.Intent);
+        Assert.Equal("Sign in button", command.Target);
+        Assert.Equal("Calculator", command.SecondaryTarget);
+    }
+
+    [Fact]
+    public void Parse_TypeIntoFieldInWindow()
+    {
+        var command = _parser.Parse("type hello world into Search field in Notepad", _context);
+
+        Assert.Equal(IntentKind.TypeIntoUiElement, command.Intent);
+        Assert.Equal("Search field", command.Target);
+        Assert.Equal("hello world", command.Argument);
+        Assert.Equal("Notepad", command.SecondaryTarget);
+    }
+
+    [Fact]
+    public void Parse_TypeIntoFieldWithoutWindow()
+    {
+        var command = _parser.Parse("enter CIPHER test into command input", _context);
+
+        Assert.Equal(IntentKind.TypeIntoUiElement, command.Intent);
+        Assert.Equal("command input", command.Target);
+        Assert.Equal("CIPHER test", command.Argument);
+        Assert.Null(command.SecondaryTarget);
+    }
+
     [Theory]
     [InlineData("what time is it", IntentKind.GetTime)]
     [InlineData("what is the date", IntentKind.GetDate)]

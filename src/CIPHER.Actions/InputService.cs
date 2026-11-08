@@ -92,6 +92,39 @@ public sealed class InputService
         Send(inputs);
     }
 
+    private const uint MouseEventMove = 0x0001;
+    private const uint MouseEventLeftDown = 0x0002;
+    private const uint MouseEventLeftUp = 0x0004;
+    private const uint MouseEventAbsolute = 0x8000;
+    private const uint MouseEventVirtualDesk = 0x4000;
+
+    /// <summary>
+    /// Moves the pointer to a screen coordinate and performs a left click through SendInput.
+    /// Used only as a fallback for UI elements that expose no actionable UIA pattern.
+    /// </summary>
+    public void ClickAt(double screenX, double screenY)
+    {
+        var virtualX = NativeMethods.GetSystemMetrics(NativeMethods.SmXVirtualScreen);
+        var virtualY = NativeMethods.GetSystemMetrics(NativeMethods.SmYVirtualScreen);
+        var virtualWidth = NativeMethods.GetSystemMetrics(NativeMethods.SmCxVirtualScreen);
+        var virtualHeight = NativeMethods.GetSystemMetrics(NativeMethods.SmCyVirtualScreen);
+        if (virtualWidth <= 0 || virtualHeight <= 0)
+        {
+            throw new InvalidOperationException("Windows did not report a virtual screen size.");
+        }
+
+        var normalizedX = (int)Math.Round((screenX - virtualX) * 65535d / Math.Max(1, virtualWidth - 1));
+        var normalizedY = (int)Math.Round((screenY - virtualY) * 65535d / Math.Max(1, virtualHeight - 1));
+        var flags = MouseEventMove | MouseEventAbsolute | MouseEventVirtualDesk;
+
+        Send(new List<NativeMethods.INPUT>
+        {
+            CreateMouseInput(normalizedX, normalizedY, flags),
+            CreateMouseInput(normalizedX, normalizedY, flags | MouseEventLeftDown),
+            CreateMouseInput(normalizedX, normalizedY, flags | MouseEventLeftUp)
+        });
+    }
+
     public void PressKeys(string keys)
     {
         if (string.IsNullOrWhiteSpace(keys))
@@ -154,6 +187,26 @@ public sealed class InputService
         }
 
         throw new ArgumentException($"Unsupported key '{key}'.");
+    }
+
+    private static NativeMethods.INPUT CreateMouseInput(int normalizedX, int normalizedY, uint flags)
+    {
+        return new NativeMethods.INPUT
+        {
+            Type = 0,
+            Data = new NativeMethods.InputUnion
+            {
+                Mouse = new NativeMethods.MOUSEINPUT
+                {
+                    X = normalizedX,
+                    Y = normalizedY,
+                    MouseData = 0,
+                    Flags = flags,
+                    Time = 0,
+                    ExtraInfo = UIntPtr.Zero
+                }
+            }
+        };
     }
 
     private static NativeMethods.INPUT CreateKeyboardInput(ushort virtualKey, ushort scanCode, uint flags)

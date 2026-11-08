@@ -75,6 +75,43 @@ public sealed class DeterministicCommandParser : ICommandParser
                 confidence: 0.99);
         }
 
+        match = Match(commandText, "^click\\s+(?:on\\s+)?(?:the\\s+)?(?<rest>.+)$");
+        if (match.Success)
+        {
+            var (elementName, clickWindow) = SplitWindowSuffix(
+                CleanTarget(match.Groups["rest"].Value));
+            return Create(
+                original,
+                commandText,
+                IntentKind.ClickUiElement,
+                target: elementName,
+                secondaryTarget: clickWindow,
+                risk: RiskLevel.Medium,
+                summary: clickWindow is null
+                    ? $"Click '{elementName}'"
+                    : $"Click '{elementName}' in {clickWindow}",
+                confidence: 0.94);
+        }
+
+        match = Match(commandText, "^(?:type|enter|input|write)\\s+(?<text>.+?)\\s+into\\s+(?:the\\s+)?(?<tail>.+)$");
+        if (match.Success)
+        {
+            var (fieldName, fieldWindow) = SplitWindowSuffix(
+                CleanTarget(match.Groups["tail"].Value));
+            return Create(
+                original,
+                commandText,
+                IntentKind.TypeIntoUiElement,
+                target: fieldName,
+                argument: match.Groups["text"].Value.Trim(),
+                secondaryTarget: fieldWindow,
+                risk: RiskLevel.Medium,
+                summary: fieldWindow is null
+                    ? $"Type text into the '{fieldName}' field"
+                    : $"Type text into the '{fieldName}' field in {fieldWindow}",
+                confidence: 0.94);
+        }
+
         match = Match(commandText, "^(?:type|write|enter text)\\s*[:\\-]?\\s*(?<text>.+)$");
         if (match.Success)
         {
@@ -359,6 +396,24 @@ public sealed class DeterministicCommandParser : ICommandParser
         }
 
         return result.Trim().TrimEnd('.', ',', ';');
+    }
+
+    /// <summary>
+    /// Splits "element name in Window Title" into its parts. The separator match is greedy so
+    /// element names that themselves contain " in " (for example "Sign in button") stay intact
+    /// and only the last " in " introduces the window title.
+    /// </summary>
+    private static (string Name, string? Window) SplitWindowSuffix(string value, Func<string, string> nameCleaner)
+    {
+        var windowMatch = Regex.Match(value, "^(?<head>.+)\\s+in\\s+(?<window>.+)$", Options);
+        if (!windowMatch.Success)
+        {
+            return (nameCleaner(value), null);
+        }
+
+        return (
+            nameCleaner(windowMatch.Groups["head"].Value.Trim()),
+            CleanTarget(windowMatch.Groups["window"].Value));
     }
 
     private static string CleanPathTarget(string value)

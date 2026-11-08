@@ -98,6 +98,56 @@ public sealed class DefaultActionPolicyTests
     }
 
     [Fact]
+    public void ClickingDangerousElement_RequiresConfirmation()
+    {
+        var command = new ParsedCommand(
+            "click Delete button",
+            "click Delete button",
+            IntentKind.ClickUiElement,
+            Target: "Delete button",
+            SecondaryTarget: "Notepad");
+
+        var decision = _policy.Evaluate(command, _context);
+
+        Assert.True(decision.IsAllowed);
+        Assert.True(decision.RequiresConfirmation);
+        Assert.Equal(RiskLevel.High, decision.Risk);
+    }
+
+    [Fact]
+    public void ClickingOrdinaryElement_DoesNotRequireConfirmation()
+    {
+        var command = new ParsedCommand(
+            "click Save button",
+            "click Save button",
+            IntentKind.ClickUiElement,
+            Target: "Save button",
+            SecondaryTarget: "Notepad");
+
+        var decision = _policy.Evaluate(command, _context);
+
+        Assert.True(decision.IsAllowed);
+        Assert.False(decision.RequiresConfirmation);
+        Assert.Equal(RiskLevel.Medium, decision.Risk);
+    }
+
+    [Fact]
+    public void TypingIntoCredentialField_IsBlocked()
+    {
+        var command = new ParsedCommand(
+            "type into password field",
+            "type into password field",
+            IntentKind.TypeIntoUiElement,
+            Target: "Password field",
+            Argument: "hunter2");
+
+        var decision = _policy.Evaluate(command, _context);
+
+        Assert.False(decision.IsAllowed);
+        Assert.Equal(RiskLevel.Critical, decision.Risk);
+    }
+
+    [Fact]
     public void OpeningOrdinaryApplication_DoesNotRequireConfirmation()
     {
         var command = new ParsedCommand(

@@ -72,7 +72,11 @@ public sealed class WindowService
                 score = Math.Max(score, 80);
             }
 
-            if (title.Contains(normalizedQuery, StringComparison.Ordinal))
+            if (title.Equals(normalizedQuery, StringComparison.Ordinal))
+            {
+                score = Math.Max(score, 95);
+            }
+            else if (title.Contains(normalizedQuery, StringComparison.Ordinal))
             {
                 score = Math.Max(score, 70);
             }

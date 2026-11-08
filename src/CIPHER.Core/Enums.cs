@@ -39,6 +39,8 @@ public enum IntentKind
     PressKeys,
     ReadWindowText,
     VerifyWindowText,
+    ClickUiElement,
+    TypeIntoUiElement,
     OpenPath,
     CreateFolder,
     CreateFile,

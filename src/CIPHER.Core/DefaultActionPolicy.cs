@@ -120,6 +120,27 @@ public sealed class DefaultActionPolicy : IActionPolicy
             case IntentKind.TypeText:
                 return Allow(RiskLevel.Medium, false, "Text entry was explicitly requested for the currently focused control.");
 
+            case IntentKind.ClickUiElement:
+                if (IsDangerousElementName(command.Target))
+                {
+                    return Allow(
+                        RiskLevel.High,
+                        requiresConfirmation: true,
+                        $"'{command.Target}' can perform a destructive or externally visible action and requires confirmation.");
+                }
+
+                return Allow(RiskLevel.Medium, false, "The user explicitly requested clicking this control.");
+
+            case IntentKind.TypeIntoUiElement:
+                if (IsCredentialFieldName(command.Target))
+                {
+                    return Block(
+                        RiskLevel.Critical,
+                        "CIPHER does not type into password, PIN, or payment fields. Enter those values yourself.");
+                }
+
+                return Allow(RiskLevel.Medium, false, "The user explicitly requested text entry into a named field.");
+
             case IntentKind.SwitchWindow:
             case IntentKind.ReadWindowText:
             case IntentKind.VerifyWindowText:
@@ -133,6 +154,40 @@ public sealed class DefaultActionPolicy : IActionPolicy
             default:
                 return Block(command.Risk, $"Intent '{command.Intent}' is not enabled.");
         }
+    }
+
+    private static readonly string[] DangerousElementWords =
+    {
+        "delete", "erase", "format", "uninstall", "shutdown", "shut down", "restart",
+        "reboot", "pay", "purchase", "buy", "reset", "publish", "send", "remove"
+    };
+
+    private static readonly string[] CredentialFieldWords =
+    {
+        "password", "pin", "passcode", "secret", "cvv", "cvc", "card number",
+        "credit card", "debit card", "one-time code", "otp"
+    };
+
+    private static bool IsDangerousElementName(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return false;
+        }
+
+        var normalized = $" {name.Trim().ToLowerInvariant()} ";
+        return DangerousElementWords.Any(word => normalized.Contains($" {word} ", StringComparison.Ordinal));
+    }
+
+    private static bool IsCredentialFieldName(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return false;
+        }
+
+        var normalized = name.Trim().ToLowerInvariant();
+        return CredentialFieldWords.Any(word => normalized.Contains(word, StringComparison.Ordinal));
     }
 
     private static bool IsDangerousShortcut(string? keys)

@@ -173,6 +173,7 @@
 
                     <TextBox x:Name="CommandInput"
                              Grid.Column="0"
+                             AutomationProperties.Name="CIPHER command input"
                              Text="{Binding Input, UpdateSourceTrigger=PropertyChanged}"
                              KeyDown="CommandInput_KeyDown"
                              Background="#020617"

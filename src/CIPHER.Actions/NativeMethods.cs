@@ -20,6 +20,14 @@ internal static partial class NativeMethods
     [LibraryImport("user32.dll", SetLastError = true)]
     internal static partial uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
 
+    [LibraryImport("user32.dll")]
+    internal static partial int GetSystemMetrics(int nIndex);
+
+    internal const int SmXVirtualScreen = 76;
+    internal const int SmYVirtualScreen = 77;
+    internal const int SmCxVirtualScreen = 78;
+    internal const int SmCyVirtualScreen = 79;
+
     [StructLayout(LayoutKind.Sequential)]
     internal struct INPUT
     {
