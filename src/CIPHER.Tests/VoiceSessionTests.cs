@@ -1,4 +1,5 @@
 using CIPHER.Core;
+using Xunit;
 
 namespace CIPHER.Tests;
 
