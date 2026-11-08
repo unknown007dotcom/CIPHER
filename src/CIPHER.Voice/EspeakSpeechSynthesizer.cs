@@ -26,6 +26,9 @@ public sealed class EspeakSpeechSynthesizer : IDisposable
 
     public string Voice { get; }
 
+    /// <summary>Diagnostic detail from the most recent failed speak attempt, when any.</summary>
+    public string? LastError { get; private set; }
+
     public bool IsAvailable => ExecutablePath is not null && File.Exists(ExecutablePath);
 
     public static string? ResolveExecutable(string? configuredPath)
@@ -79,9 +82,19 @@ public sealed class EspeakSpeechSynthesizer : IDisposable
                 return false;
             }
 
-            await process.StandardInput.WriteAsync(text).ConfigureAwait(false);
-            process.StandardInput.Close();
+            var errorReader = process.StandardError.ReadToEndAsync();
+            try
+            {
+                await process.StandardInput.WriteAsync(text).ConfigureAwait(false);
+                process.StandardInput.Close();
+            }
+            catch (IOException)
+            {
+                // The synthesizer exited before reading input; its exit code/stderr explains why.
+            }
+
             await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
+            RecordOutcome(process.ExitCode, await errorReader.ConfigureAwait(false));
             return process.ExitCode == 0;
         }
         catch (OperationCanceledException)
@@ -127,10 +140,13 @@ public sealed class EspeakSpeechSynthesizer : IDisposable
         {
             if (!process.Start())
             {
+                LastError = "espeak-ng.exe could not be started.";
                 return false;
             }
 
+            var errorReader = process.StandardError.ReadToEndAsync();
             await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
+            RecordOutcome(process.ExitCode, await errorReader.ConfigureAwait(false));
             return process.ExitCode == 0 &&
                    File.Exists(waveFilePath) &&
                    new FileInfo(waveFilePath).Length > 100;
@@ -179,11 +195,44 @@ public sealed class EspeakSpeechSynthesizer : IDisposable
         {
             UseShellExecute = false,
             CreateNoWindow = true,
-            RedirectStandardInput = true
+            RedirectStandardInput = true,
+            RedirectStandardError = true
         };
+
+        // Extracted/portable layouts keep the voice data next to the executable; point
+        // eSpeak NG at it explicitly so it works regardless of installation state.
+        var executableDirectory = Path.GetDirectoryName(ExecutablePath!);
+        if (!string.IsNullOrWhiteSpace(executableDirectory))
+        {
+            var dataDirectory = Path.Combine(executableDirectory, "espeak-ng-data");
+            if (Directory.Exists(dataDirectory))
+            {
+                startInfo.Environment["ESPEAK_DATA_PATH"] = dataDirectory;
+            }
+        }
+
         startInfo.ArgumentList.Add("-v");
         startInfo.ArgumentList.Add(Voice);
         return startInfo;
+    }
+
+    private void RecordOutcome(int exitCode, string standardError)
+    {
+        if (exitCode == 0)
+        {
+            LastError = null;
+            return;
+        }
+
+        var detail = standardError?.Trim() ?? string.Empty;
+        if (detail.Length > 300)
+        {
+            detail = detail[..300];
+        }
+
+        LastError = detail.Length > 0
+            ? $"eSpeak NG exited with code {exitCode}: {detail}"
+            : $"eSpeak NG exited with code {exitCode}.";
     }
 
     private void TrackProcess(Process process)

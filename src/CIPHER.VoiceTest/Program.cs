@@ -99,7 +99,7 @@ internal static class Program
                     var rendered = synthesizer
                         .SpeakToWaveFileAsync("CIPHER voice output verification.", outputPath)
                         .GetAwaiter().GetResult();
-                    Require(rendered, "eSpeak NG did not produce a valid WAV file.");
+                    Require(rendered, $"eSpeak NG did not produce a valid WAV file. {synthesizer.LastError}");
                     return $"rendered {new FileInfo(outputPath).Length} bytes of speech audio";
                 }
                 finally
