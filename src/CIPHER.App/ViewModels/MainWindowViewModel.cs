@@ -5,6 +5,7 @@ using System.Windows.Media;
 using CIPHER.Actions;
 using CIPHER.Browser;
 using CIPHER.Core;
+using CIPHER.Memory;
 using CIPHER.Voice;
 
 namespace CIPHER.App.ViewModels;
@@ -16,6 +17,9 @@ public sealed class MainWindowViewModel : ObservableObject
     private readonly BrowserActionExecutor _browserExecutor;
     private AssistantSettings _settings = new();
     private CancellationTokenSource? _cancellationTokenSource;
+
+    private SqliteMemoryStore? _memoryStore;
+    private MemoryCommandHandler? _memoryCommands;
 
     private VoskMicrophoneListener? _voiceListener;
     private VoiceSession? _voiceSession;
@@ -51,7 +55,12 @@ public sealed class MainWindowViewModel : ObservableObject
         _executors = new IActionExecutor[]
         {
             new BuiltInActionExecutor(),
-            new WindowsActionExecutor(),
+            new WindowsActionExecutor(
+                new WindowService(),
+                new InputService(),
+                appPathResolver: (name, cancellationToken) => _memoryStore is null
+                    ? Task.FromResult<string?>(null)
+                    : _memoryStore.GetAppPathAsync(name, cancellationToken)),
             _browserExecutor
         };
 
@@ -204,6 +213,55 @@ public sealed class MainWindowViewModel : ObservableObject
         AlwaysOnTop = _settings.AlwaysOnTop;
         WakePhrase = _settings.WakePhrase;
         SpeechOutputEnabled = _settings.SpeechOutputEnabled;
+        await InitializeMemoryAsync().ConfigureAwait(true);
+    }
+
+    /// <summary>
+    /// Opens the local SQLite memory, reports any task the previous session left
+    /// unfinished (marking it Interrupted — never silently re-running it), and shows the
+    /// most recent history. Memory problems degrade to a notice, never a startup failure.
+    /// </summary>
+    private async Task InitializeMemoryAsync()
+    {
+        try
+        {
+            var store = SqliteMemoryStore.CreateDefault();
+            await store.InitializeAsync().ConfigureAwait(true);
+            _memoryStore = store;
+            _memoryCommands = new MemoryCommandHandler(store);
+
+            if (store.RecoveredFromCorruption)
+            {
+                AddConversation(
+                    "CIPHER: The local memory database was damaged, so I quarantined it and started a fresh one. " +
+                    "Learned aliases, app locations, and history were reset. (Passwords and credentials are never stored there.)");
+            }
+
+            var incomplete = await store.GetIncompleteTasksAsync().ConfigureAwait(true);
+            foreach (var task in incomplete)
+            {
+                await store.CompleteTaskAsync(
+                    task.Id,
+                    TaskRecordStatus.Interrupted,
+                    "The previous CIPHER session ended before this task completed.",
+                    CancellationToken.None).ConfigureAwait(true);
+                AddConversation(
+                    $"CIPHER: Recovery note — the previous session ended during '{task.InputText}'. " +
+                    "I did not re-run it automatically; ask again if you still want it.");
+            }
+
+            var history = await store.GetRecentHistoryAsync(3).ConfigureAwait(true);
+            foreach (var entry in history)
+            {
+                AddConversation($"History: '{entry.InputText}' → {entry.Status}");
+            }
+        }
+        catch (Exception ex)
+        {
+            AddConversation(
+                $"CIPHER: Local memory is unavailable ({ex.Message}). Commands still work; " +
+                "history, aliases, and crash recovery are off for this session.");
+        }
     }
 
     public void RequestCancellation()
@@ -221,6 +279,9 @@ public sealed class MainWindowViewModel : ObservableObject
             _voiceListener = null;
             _speechSynthesizer?.Dispose();
             _speechSynthesizer = null;
+            _memoryStore?.Dispose();
+            _memoryStore = null;
+            _memoryCommands = null;
         }
         catch (Exception)
         {
@@ -264,7 +325,36 @@ public sealed class MainWindowViewModel : ObservableObject
             return;
         }
 
-        AddConversation($"You: {text}");
+        // Memory commands (teach/forget/list) and whole-phrase aliases are handled before
+        // parsing. Alias expansions still run through the full parser/policy/confirmation
+        // flow below, so an alias can never bypass a safety check.
+        var effectiveText = text;
+        if (_memoryCommands is not null)
+        {
+            try
+            {
+                var handling = await _memoryCommands.TryHandleAsync(text).ConfigureAwait(true);
+                if (handling.Kind == MemoryHandlingKind.Responded)
+                {
+                    AddConversation($"You: {text}");
+                    AddConversation($"CIPHER: {handling.Response}");
+                    StatusText = "Completed";
+                    ProgressText = handling.Response ?? string.Empty;
+                    return;
+                }
+
+                if (handling.Kind == MemoryHandlingKind.ExpandAlias && !string.IsNullOrWhiteSpace(handling.Expansion))
+                {
+                    effectiveText = handling.Expansion;
+                }
+            }
+            catch (Exception ex)
+            {
+                AddConversation($"CIPHER: Memory lookup failed ({ex.Message}); running your command as typed.");
+            }
+        }
+
+        AddConversation(effectiveText == text ? $"You: {text}" : $"You: {text}  (alias for: {effectiveText})");
         IsBusy = true;
         ProgressValue = 5;
         ProgressText = "Processing command.";
@@ -275,13 +365,14 @@ public sealed class MainWindowViewModel : ObservableObject
             parser,
             new DefaultActionPolicy(),
             _executors,
-            new MessageBoxConfirmationService());
+            new MessageBoxConfirmationService(),
+            _memoryStore);
         engine.EventPublished += OnEngineEvent;
 
         try
         {
             var result = await Task.Run(
-                () => engine.ExecuteTextAsync(text, CommandContext.Current, _cancellationTokenSource.Token));
+                () => engine.ExecuteTextAsync(effectiveText, CommandContext.Current, _cancellationTokenSource.Token));
 
             var message = result.ActionResult?.Message ?? result.Policy.Reason;
             AddConversation($"CIPHER: {message}");

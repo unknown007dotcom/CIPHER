@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\CIPHER.Core\CIPHER.Core.csproj" />
+    <ProjectReference Include="..\CIPHER.Memory\CIPHER.Memory.csproj" />
   </ItemGroup>
 
 </Project>

@@ -11,17 +11,20 @@ public sealed class TaskEngine
     private readonly IActionPolicy _policy;
     private readonly IReadOnlyList<IActionExecutor> _executors;
     private readonly IConfirmationService? _confirmationService;
+    private readonly IMemoryStore? _memoryStore;
 
     public TaskEngine(
         ICommandParser parser,
         IActionPolicy policy,
         IEnumerable<IActionExecutor> executors,
-        IConfirmationService? confirmationService = null)
+        IConfirmationService? confirmationService = null,
+        IMemoryStore? memoryStore = null)
     {
         _parser = parser ?? throw new ArgumentNullException(nameof(parser));
         _policy = policy ?? throw new ArgumentNullException(nameof(policy));
         _executors = (executors ?? throw new ArgumentNullException(nameof(executors))).ToList();
         _confirmationService = confirmationService;
+        _memoryStore = memoryStore;
     }
 
     public AssistantState State { get; private set; } = AssistantState.Idle;
@@ -29,6 +32,54 @@ public sealed class TaskEngine
     public event EventHandler<AssistantEvent>? EventPublished;
 
     public async Task<TaskExecutionResult> ExecuteTextAsync(
+        string input,
+        CommandContext? context = null,
+        CancellationToken cancellationToken = default)
+    {
+        // Journal first: if the process dies mid-task, the Running record left behind is
+        // the recovery signal on the next start. Memory failures must never break a
+        // command, so every store call here is best-effort.
+        TaskRecord? taskRecord = null;
+        if (_memoryStore is not null)
+        {
+            try
+            {
+                taskRecord = await _memoryStore.BeginTaskAsync(input, CancellationToken.None).ConfigureAwait(false);
+            }
+            catch (Exception)
+            {
+                // Continue without journaling.
+            }
+        }
+
+        var result = await ExecuteCoreAsync(input, context, cancellationToken).ConfigureAwait(false);
+
+        if (_memoryStore is not null)
+        {
+            var message = result.ActionResult?.Message ?? result.Policy.Reason;
+            try
+            {
+                if (taskRecord is not null)
+                {
+                    await _memoryStore
+                        .CompleteTaskAsync(taskRecord.Id, result.Status.ToString(), message, CancellationToken.None)
+                        .ConfigureAwait(false);
+                }
+
+                await _memoryStore
+                    .AddHistoryAsync(input, result.Status.ToString(), message, CancellationToken.None)
+                    .ConfigureAwait(false);
+            }
+            catch (Exception)
+            {
+                // Continue without journaling.
+            }
+        }
+
+        return result;
+    }
+
+    private async Task<TaskExecutionResult> ExecuteCoreAsync(
         string input,
         CommandContext? context = null,
         CancellationToken cancellationToken = default)

@@ -16,6 +16,7 @@ public sealed class WindowsActionExecutor : IActionExecutor
     private readonly InputService _inputService;
     private readonly TextControlService _textControlService;
     private readonly UiElementService _uiElementService;
+    private readonly Func<string, CancellationToken, Task<string?>>? _appPathResolver;
 
     public WindowsActionExecutor()
         : this(new WindowService(), new InputService(), new TextControlService())
@@ -26,12 +27,14 @@ public sealed class WindowsActionExecutor : IActionExecutor
         WindowService windowService,
         InputService inputService,
         TextControlService? textControlService = null,
-        UiElementService? uiElementService = null)
+        UiElementService? uiElementService = null,
+        Func<string, CancellationToken, Task<string?>>? appPathResolver = null)
     {
         _windowService = windowService ?? throw new ArgumentNullException(nameof(windowService));
         _inputService = inputService ?? throw new ArgumentNullException(nameof(inputService));
         _textControlService = textControlService ?? new TextControlService();
         _uiElementService = uiElementService ?? new UiElementService(inputService);
+        _appPathResolver = appPathResolver;
     }
 
     public bool CanExecute(ParsedCommand command)
@@ -61,6 +64,30 @@ public sealed class WindowsActionExecutor : IActionExecutor
         CommandContext context,
         CancellationToken cancellationToken)
     {
+        // Learned application paths (persistent memory) layer over the built-in catalog:
+        // only consulted for names the catalog does not know, and lookup failures are
+        // non-fatal — the normal resolution path simply proceeds.
+        if (command.Intent == IntentKind.OpenApplication &&
+            _appPathResolver is not null &&
+            !string.IsNullOrWhiteSpace(command.Target) &&
+            ApplicationCatalog.Resolve(command.Target) is null)
+        {
+            string? learnedPath = null;
+            try
+            {
+                learnedPath = await _appPathResolver(command.Target, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception)
+            {
+                // Memory lookup must never block launching.
+            }
+
+            if (!string.IsNullOrWhiteSpace(learnedPath))
+            {
+                command = command with { Target = learnedPath };
+            }
+        }
+
         try
         {
             return await Task.Run(() => Execute(command, context, cancellationToken), cancellationToken)

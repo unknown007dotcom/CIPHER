@@ -188,6 +188,20 @@ jobs:
         timeout-minutes: 5
         run: ./src/CIPHER.VoiceTest/bin/Release/net10.0-windows/CIPHER.VoiceTest.exe
 
+      - name: Stage 7 memory harness - write phase (simulated kill)
+        shell: pwsh
+        run: |
+          $db = Join-Path $env:RUNNER_TEMP "cipher-stage7-memory.db"
+          ./src/CIPHER.MemoryTest/bin/Release/net10.0/CIPHER.MemoryTest.exe --write --db $db
+          if ($LASTEXITCODE -ne 0) { throw "Stage 7 write phase failed with exit code $LASTEXITCODE." }
+
+      - name: Stage 7 memory harness - restart and verify recovery
+        shell: pwsh
+        run: |
+          $db = Join-Path $env:RUNNER_TEMP "cipher-stage7-memory.db"
+          ./src/CIPHER.MemoryTest/bin/Release/net10.0/CIPHER.MemoryTest.exe --verify --db $db
+          if ($LASTEXITCODE -ne 0) { throw "Stage 7 recovery verification failed with exit code $LASTEXITCODE." }
+
       - name: Publish Windows x64 app (framework-dependent validation build)
         run: >-
           dotnet publish src/CIPHER.App/CIPHER.App.csproj
