@@ -38,13 +38,15 @@ public sealed class TaskEngine
     {
         // Journal first: if the process dies mid-task, the Running record left behind is
         // the recovery signal on the next start. Memory failures must never break a
-        // command, so every store call here is best-effort.
+        // command, so every store call here is best-effort. Journaled text is redacted:
+        // users sometimes paste secrets into commands, and history must not keep them.
+        var journalText = SensitiveDataRedactor.Redact(input);
         TaskRecord? taskRecord = null;
         if (_memoryStore is not null)
         {
             try
             {
-                taskRecord = await _memoryStore.BeginTaskAsync(input, CancellationToken.None).ConfigureAwait(false);
+                taskRecord = await _memoryStore.BeginTaskAsync(journalText, CancellationToken.None).ConfigureAwait(false);
             }
             catch (Exception)
             {
@@ -56,7 +58,7 @@ public sealed class TaskEngine
 
         if (_memoryStore is not null)
         {
-            var message = result.ActionResult?.Message ?? result.Policy.Reason;
+            var message = SensitiveDataRedactor.Redact(result.ActionResult?.Message ?? result.Policy.Reason);
             try
             {
                 if (taskRecord is not null)
@@ -67,7 +69,7 @@ public sealed class TaskEngine
                 }
 
                 await _memoryStore
-                    .AddHistoryAsync(input, result.Status.ToString(), message, CancellationToken.None)
+                    .AddHistoryAsync(journalText, result.Status.ToString(), message, CancellationToken.None)
                     .ConfigureAwait(false);
             }
             catch (Exception)

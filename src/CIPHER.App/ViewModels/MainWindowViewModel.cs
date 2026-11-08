@@ -23,6 +23,7 @@ public sealed class MainWindowViewModel : ObservableObject
     private MemoryCommandHandler? _memoryCommands;
 
     private readonly DpapiApiKeyStore _apiKeyStore = DpapiApiKeyStore.CreateDefault();
+    private readonly AuditLog _auditLog = new(AuditLog.CreateDefaultPath());
     private bool _aiDelegationEnabled;
     private string _aiBaseUrl = "https://api.openai.com/v1";
     private string _aiModel = "gpt-4o-mini";
@@ -70,7 +71,7 @@ public sealed class MainWindowViewModel : ObservableObject
                     : _memoryStore.GetAppPathAsync(name, cancellationToken)),
             _browserExecutor,
             new DelegationActionExecutor(() => new AiDelegationOptions(
-                _settings.AiDelegationEnabled,
+                _settings.AiDelegationEnabled && !global::CIPHER.App.App.IsSafeMode,
                 _settings.AiBaseUrl,
                 _settings.AiModel,
                 LoadApiKeyOrNull(),
@@ -110,6 +111,7 @@ public sealed class MainWindowViewModel : ObservableObject
         {
             _apiKeyStore.Delete();
             RefreshApiKeyStatus();
+            Audit("security.api_key_deleted", "The saved external AI API key was deleted by the user.");
             AddConversation("CIPHER: The saved API key was deleted from this PC.");
         });
     }
@@ -263,6 +265,15 @@ public sealed class MainWindowViewModel : ObservableObject
         AiBaseUrl = _settings.AiBaseUrl;
         AiModel = _settings.AiModel;
         RefreshApiKeyStatus();
+        if (global::CIPHER.App.App.IsSafeMode)
+        {
+            AddConversation(
+                "CIPHER: Safe mode is on (--safe-mode). External AI delegation and continuous wake " +
+                "listening are disabled for this session; typed commands, quarantine review, and " +
+                "'verify audit log' are available.");
+            Audit("app.safe_mode", "CIPHER started with --safe-mode.");
+        }
+
         await InitializeMemoryAsync().ConfigureAwait(true);
     }
 
@@ -285,6 +296,7 @@ public sealed class MainWindowViewModel : ObservableObject
                 AddConversation(
                     "CIPHER: The local memory database was damaged, so I quarantined it and started a fresh one. " +
                     "Learned aliases, app locations, and history were reset. (Passwords and credentials are never stored there.)");
+                Audit("memory.corruption_recovered", $"Database quarantined and recreated: {store.DatabasePath}");
             }
 
             var incomplete = await store.GetIncompleteTasksAsync().ConfigureAwait(true);
@@ -300,10 +312,23 @@ public sealed class MainWindowViewModel : ObservableObject
                     "I did not re-run it automatically; ask again if you still want it.");
             }
 
+            if (incomplete.Count > 0)
+            {
+                Audit("memory.interrupted_recovered", $"{incomplete.Count} interrupted task(s) were marked Interrupted at startup.");
+            }
+
             var history = await store.GetRecentHistoryAsync(3).ConfigureAwait(true);
             foreach (var entry in history)
             {
                 AddConversation($"History: '{entry.InputText}' → {entry.Status}");
+            }
+
+            var quarantineCount = new QuarantineService().Count();
+            if (quarantineCount > 0)
+            {
+                AddConversation(
+                    $"CIPHER: You have {quarantineCount} item(s) in quarantine. Say 'list quarantine' to review " +
+                    "them or 'restore <name>' to recover one.");
             }
         }
         catch (Exception ex)
@@ -436,6 +461,7 @@ public sealed class MainWindowViewModel : ObservableObject
                 _ => "Failed"
             };
             ProgressValue = result.Status is CipherTaskStatus.Succeeded or CipherTaskStatus.SucceededUnverified ? 100 : 0;
+            AuditTaskOutcome(result);
 
             // An AI-suggested command is placed in the input box for explicit user review;
             // it only runs if the user presses Send (full policy + confirmation applies).
@@ -494,7 +520,44 @@ public sealed class MainWindowViewModel : ObservableObject
 
         await Task.Run(() => _apiKeyStore.Save(apiKey)).ConfigureAwait(true);
         RefreshApiKeyStatus();
+        Audit("security.api_key_saved", "An external AI API key was saved by the user (DPAPI-encrypted).");
         AddConversation("CIPHER: API key saved (DPAPI-encrypted on this PC).");
+    }
+
+    /// <summary>Best-effort audit append; auditing must never break command execution.</summary>
+    private void Audit(string eventType, string details)
+    {
+        try
+        {
+            _auditLog.Append(eventType, details);
+        }
+        catch (Exception)
+        {
+            // The audit log is evidence, not a runtime dependency.
+        }
+    }
+
+    private void AuditTaskOutcome(TaskExecutionResult result)
+    {
+        if (result.Status == CipherTaskStatus.Blocked)
+        {
+            Audit("task.blocked", $"{result.Command.Intent}: {result.Policy.Reason}");
+        }
+        else if (result.Status == CipherTaskStatus.Cancelled)
+        {
+            Audit("task.cancelled", $"{result.Command.Intent}: {result.ActionResult?.Message}");
+        }
+
+        if (result.Command.Intent == IntentKind.AskExternalAi)
+        {
+            var host = Uri.TryCreate(_settings.AiBaseUrl, UriKind.Absolute, out var uri) ? uri.Host : "invalid-endpoint";
+            var artifact = result.ActionResult?.Data is { } data && data.TryGetValue("artifactPath", out var path)
+                ? path
+                : "none";
+            Audit(
+                result.ActionResult?.Success == true ? "delegation.completed" : "delegation.failed",
+                $"endpoint={host} model={_settings.AiModel} artifact={artifact}");
+        }
     }
 
     private void RefreshApiKeyStatus()
@@ -544,6 +607,14 @@ public sealed class MainWindowViewModel : ObservableObject
     {
         if (enabled)
         {
+            if (global::CIPHER.App.App.IsSafeMode)
+            {
+                _wakeListeningEnabled = false;
+                OnPropertyChanged(nameof(WakeListeningEnabled));
+                AddConversation("CIPHER: Wake listening is disabled in safe mode (--safe-mode).");
+                return;
+            }
+
             _continuousListening = true;
             var started = await StartListeningAsync().ConfigureAwait(true);
             if (started)

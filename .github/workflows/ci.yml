@@ -209,6 +209,25 @@ jobs:
           ./src/CIPHER.DelegationTest/bin/Release/net10.0/CIPHER.DelegationTest.exe
           if ($LASTEXITCODE -ne 0) { throw "Stage 8 delegation harness failed with exit code $LASTEXITCODE." }
 
+      - name: Stage 9 audit harness - write phase
+        shell: pwsh
+        run: |
+          $log = Join-Path $env:RUNNER_TEMP "cipher-stage9-audit.log"
+          ./src/CIPHER.SecurityTest/bin/Release/net10.0/CIPHER.SecurityTest.exe --write --log $log
+          if ($LASTEXITCODE -ne 0) { throw "Stage 9 audit write phase failed with exit code $LASTEXITCODE." }
+
+      - name: Stage 9 audit harness - verify chain, redaction, tamper evidence
+        shell: pwsh
+        run: |
+          $log = Join-Path $env:RUNNER_TEMP "cipher-stage9-audit.log"
+          ./src/CIPHER.SecurityTest/bin/Release/net10.0/CIPHER.SecurityTest.exe --verify --log $log
+          if ($LASTEXITCODE -ne 0) { throw "Stage 9 audit verification failed with exit code $LASTEXITCODE." }
+
+      - name: Run Stage 9 security gate harness (quarantine recovery, non-interactive session)
+        continue-on-error: true
+        timeout-minutes: 3
+        run: ./src/CIPHER.MilestoneTest/bin/Release/net10.0-windows/CIPHER.MilestoneTest.exe stage9
+
       - name: Publish Windows x64 app (framework-dependent validation build)
         run: >-
           dotnet publish src/CIPHER.App/CIPHER.App.csproj

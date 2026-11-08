@@ -17,6 +17,10 @@ namespace CIPHER.MilestoneTest;
 ///              and click its named Clear button. Usage:
 ///              CIPHER.MilestoneTest.exe stage4 --app &lt;path-to-CIPHER.exe&gt;
 ///
+///   stage9     Stage 9 security gate — delete → quarantine → list → restore round-trip
+///              on temporary files, proving blocked and confirmation-denied actions do
+///              not mutate data. Usage: CIPHER.MilestoneTest.exe stage9
+///
 /// Exit codes: 0 = every scored step passed, 1 = a scored step failed,
 /// 3 = everything was skipped (targets unavailable in this environment).
 /// A harness refuses to type into a Notepad window that already contains user text.
@@ -32,6 +36,11 @@ internal static class Program
         if (args.Any(arg => string.Equals(arg, "stage4", StringComparison.OrdinalIgnoreCase)))
         {
             return await RunStage4Async(args);
+        }
+
+        if (args.Any(arg => string.Equals(arg, "stage9", StringComparison.OrdinalIgnoreCase)))
+        {
+            return await RunStage9Async();
         }
 
         return await RunMilestoneAsync();
@@ -403,12 +412,130 @@ internal static class Program
         }
     }
 
+    private static async Task<int> RunStage9Async()
+    {
+        Console.WriteLine("CIPHER Stage 9 security gate harness (quarantine recovery + no-mutation proofs)");
+        Console.WriteLine();
+
+        Steps.Clear();
+        Skips.Clear();
+
+        var workDirectory = Path.Combine(Path.GetTempPath(), $"cipher-stage9-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(workDirectory);
+        var victimPath = Path.Combine(workDirectory, "stage9-delete-me.txt");
+        var sentinelPath = Path.Combine(workDirectory, "stage9-keep-me.txt");
+        await File.WriteAllTextAsync(victimPath, "stage9-delete-probe");
+        await File.WriteAllTextAsync(sentinelPath, "stage9-keep-probe");
+
+        try
+        {
+            var approveEngine = new TaskEngine(
+                new DeterministicCommandParser(),
+                new DefaultActionPolicy(),
+                new IActionExecutor[] { new BuiltInActionExecutor(), new WindowsActionExecutor() },
+                new StaticConfirmationService(true));
+            var denyEngine = new TaskEngine(
+                new DeterministicCommandParser(),
+                new DefaultActionPolicy(),
+                new IActionExecutor[] { new BuiltInActionExecutor(), new WindowsActionExecutor() },
+                new StaticConfirmationService(false));
+
+            // Delete is reversible: the file must leave its home and land in quarantine.
+            var delete = await approveEngine.ExecuteTextAsync($"delete {victimPath}");
+            Report(
+                "Delete moves file to quarantine",
+                delete.Status == CipherTaskStatus.Succeeded && !File.Exists(victimPath),
+                delete.ActionResult?.Message ?? delete.Policy.Reason);
+
+            var list = await approveEngine.ExecuteTextAsync("list quarantine");
+            Report(
+                "List quarantine shows the item",
+                list.Status == CipherTaskStatus.Succeeded &&
+                (list.ActionResult?.Message.Contains("stage9-delete-me.txt") ?? false),
+                list.ActionResult?.Message ?? list.Policy.Reason);
+
+            // Restore puts it back byte-for-byte, via the recorded original location.
+            var restore = await approveEngine.ExecuteTextAsync("restore stage9-delete-me.txt");
+            var restoredContent = File.Exists(victimPath) ? await File.ReadAllTextAsync(victimPath) : string.Empty;
+            Report(
+                "Restore returns file to original location",
+                restore.Status == CipherTaskStatus.Succeeded && restoredContent == "stage9-delete-probe",
+                restore.ActionResult?.Message ?? restore.Policy.Reason);
+
+            // Exit gate: a denied confirmation must not mutate anything.
+            var denied = await denyEngine.ExecuteTextAsync($"delete {sentinelPath}");
+            Report(
+                "Denied confirmation mutates nothing",
+                denied.Status == CipherTaskStatus.Cancelled &&
+                File.Exists(sentinelPath) &&
+                await File.ReadAllTextAsync(sentinelPath) == "stage9-keep-probe",
+                $"Status: {denied.Status}");
+
+            // Exit gate: a policy-blocked command must not mutate anything.
+            var blocked = await approveEngine.ExecuteTextAsync("do something undefined");
+            Report(
+                "Blocked command mutates nothing",
+                blocked.Status == CipherTaskStatus.Blocked &&
+                File.Exists(sentinelPath) &&
+                await File.ReadAllTextAsync(sentinelPath) == "stage9-keep-probe",
+                $"Status: {blocked.Status}");
+
+            // The audit log command runs and verifies the local chain file.
+            var audit = await approveEngine.ExecuteTextAsync("verify audit log");
+            Report(
+                "Verify audit log executes",
+                audit.ActionResult is not null,
+                audit.ActionResult?.Message ?? audit.Policy.Reason);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"::error title=CIPHER Stage 9 security gate::Harness exception: {ex.Message}");
+            Console.WriteLine($"STAGE9 RESULT: FAIL (exception: {ex.GetType().Name}: {ex.Message})");
+            return 1;
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(workDirectory, recursive: true);
+            }
+            catch (IOException)
+            {
+                // Temporary harness data.
+            }
+        }
+
+        var passedCount = Steps.Count(step => step.Passed);
+        var allPassed = Steps.Count > 0 && passedCount == Steps.Count;
+        Console.WriteLine();
+        Console.WriteLine($"STAGE9 RESULT: {(allPassed ? "PASS" : "FAIL")} ({passedCount}/{Steps.Count} steps)");
+        Console.WriteLine(allPassed
+            ? "::notice title=CIPHER Stage 9 security gate::STAGE9-PASS delete→quarantine→list→restore round-tripped; denied and blocked actions mutated nothing."
+            : $"::error title=CIPHER Stage 9 security gate::STAGE9-FAIL failed steps: {string.Join(", ", Steps.Where(step => !step.Passed).Select(step => step.Name))}");
+        return allPassed ? 0 : 1;
+    }
+
     private static TaskEngine CreateEngine()
     {
         return new TaskEngine(
             new DeterministicCommandParser(),
             new DefaultActionPolicy(),
             new IActionExecutor[] { new BuiltInActionExecutor(), new WindowsActionExecutor() });
+    }
+
+    private sealed class StaticConfirmationService : IConfirmationService
+    {
+        private readonly bool _approved;
+
+        public StaticConfirmationService(bool approved) => _approved = approved;
+
+        public Task<bool> ConfirmAsync(
+            ParsedCommand command,
+            PolicyDecision decision,
+            CancellationToken cancellationToken)
+        {
+            return Task.FromResult(_approved);
+        }
     }
 
     private static async Task<System.Windows.Automation.AutomationElement?> WaitForWindowAsync(

@@ -5,7 +5,12 @@ public sealed class BuiltInActionExecutor : IActionExecutor
 {
     public bool CanExecute(ParsedCommand command)
     {
-        return command.Intent is IntentKind.Help or IntentKind.GetTime or IntentKind.GetDate or IntentKind.GetSystemInfo;
+        return command.Intent is
+            IntentKind.Help or
+            IntentKind.GetTime or
+            IntentKind.GetDate or
+            IntentKind.GetSystemInfo or
+            IntentKind.VerifyAuditLog;
     }
 
     public Task<ActionResult> ExecuteAsync(
@@ -25,6 +30,7 @@ public sealed class BuiltInActionExecutor : IActionExecutor
                 "ask ai <question> (external AI delegation, only when enabled in Settings), " +
                 "alias <name> = <command>, list aliases, forget alias <name>, " +
                 "remember app <name> at <path>, list apps, " +
+                "list quarantine, restore <name>, verify audit log, " +
                 "create folder <path>, create file <path>, list files in <path>, " +
                 "copy <source> to <destination>, move <source> to <destination>, " +
                 "rename <source> to <destination>, delete <path>, time, date, and system info.",
@@ -54,9 +60,28 @@ public sealed class BuiltInActionExecutor : IActionExecutor
                     ["dotnetVersion"] = Environment.Version.ToString(),
                     ["workingDirectory"] = context.WorkingDirectory
                 }),
+            IntentKind.VerifyAuditLog => VerifyAuditLog(),
             _ => ActionResult.Fail($"The built-in executor does not handle '{command.Intent}'.", "UNSUPPORTED_INTENT")
         };
 
         return Task.FromResult(result);
+    }
+
+    private static ActionResult VerifyAuditLog()
+    {
+        var path = AuditLog.CreateDefaultPath();
+        var verification = AuditLog.Verify(path);
+        return verification.IsValid
+            ? ActionResult.Ok(
+                $"{verification.Message} Log file: {path}",
+                verified: true,
+                data: new Dictionary<string, string>
+                {
+                    ["entries"] = verification.EntryCount.ToString(),
+                    ["path"] = path
+                })
+            : ActionResult.Fail(
+                $"Audit log integrity check FAILED at line {verification.FirstInvalidLine}: {verification.Message} Log file: {path}",
+                "AUDIT_CHAIN_INVALID");
     }
 }

@@ -56,6 +56,8 @@ public sealed class WindowsActionExecutor : IActionExecutor
             IntentKind.DeletePath or
             IntentKind.MovePath or
             IntentKind.CopyPath or
+            IntentKind.ListQuarantine or
+            IntentKind.RestoreQuarantineItem or
             IntentKind.RenamePath;
     }
 
@@ -123,6 +125,8 @@ public sealed class WindowsActionExecutor : IActionExecutor
             IntentKind.CreateFile => CreateFile(command, context),
             IntentKind.ListDirectory => ListDirectory(command, context),
             IntentKind.DeletePath => DeletePath(command, context),
+            IntentKind.ListQuarantine => ListQuarantine(),
+            IntentKind.RestoreQuarantineItem => RestoreQuarantineItem(command),
             IntentKind.MovePath => MovePath(command, context, isRename: false),
             IntentKind.RenamePath => MovePath(command, context, isRename: true),
             IntentKind.CopyPath => CopyPath(command, context, cancellationToken),
@@ -803,6 +807,17 @@ public sealed class WindowsActionExecutor : IActionExecutor
             Directory.Move(source, destination);
         }
 
+        try
+        {
+            // Record where the item came from so 'restore <name>' can put it back exactly.
+            new QuarantineService(quarantineRoot).WriteMetadata(destination, source, Directory.Exists(destination));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Metadata is best-effort; the item is still safely quarantined and can be
+            // restored to the Recovered folder if its origin was not recorded.
+        }
+
         var verified = !File.Exists(source) && !Directory.Exists(source) &&
                        (File.Exists(destination) || Directory.Exists(destination));
 
@@ -814,6 +829,101 @@ public sealed class WindowsActionExecutor : IActionExecutor
                 ["source"] = source,
                 ["quarantinePath"] = destination
             });
+    }
+
+    private ActionResult ListQuarantine()
+    {
+        var service = new QuarantineService();
+        var items = service.List();
+        if (items.Count == 0)
+        {
+            return ActionResult.Ok(
+                "CIPHER quarantine is empty. Deleted items are moved there (not erased) and can be recovered with 'restore <name>'.",
+                verified: true,
+                data: new Dictionary<string, string> { ["count"] = "0" });
+        }
+
+        var lines = items
+            .Take(50)
+            .Select(item => item.OriginalPath is null
+                ? $"{item.DisplayName} — original location not recorded"
+                : $"{item.DisplayName} — from {item.OriginalPath} at {item.QuarantinedUtc:yyyy-MM-dd HH:mm} UTC");
+        var message = $"{items.Count} item(s) in quarantine:\n" + string.Join("\n", lines);
+        if (items.Count > 50)
+        {
+            message += "\n…(showing the 50 most recent)";
+        }
+
+        message += "\nSay 'restore <name>' to recover one.";
+        return ActionResult.Ok(
+            message,
+            verified: true,
+            data: new Dictionary<string, string> { ["count"] = items.Count.ToString() });
+    }
+
+    private ActionResult RestoreQuarantineItem(ParsedCommand command)
+    {
+        if (string.IsNullOrWhiteSpace(command.Target))
+        {
+            return ActionResult.Fail("No quarantined item was specified.", "PATH_NOT_SPECIFIED");
+        }
+
+        var service = new QuarantineService();
+        var matches = service.FindMatches(command.Target);
+        if (matches.Count == 0)
+        {
+            return ActionResult.Fail(
+                $"No quarantined item matches '{command.Target}'. Say 'list quarantine' to see what can be restored.",
+                "QUARANTINE_ITEM_NOT_FOUND");
+        }
+
+        if (matches.Count > 1)
+        {
+            var names = string.Join(", ", matches.Select(match => $"'{Path.GetFileName(match.QuarantinePath)}'"));
+            return ActionResult.Fail(
+                $"More than one quarantined item matches '{command.Target}': {names}. Restore by the exact quarantined file name.",
+                "QUARANTINE_AMBIGUOUS");
+        }
+
+        var item = matches[0];
+        var fallbackUsed = item.OriginalPath is null;
+        var destination = fallbackUsed
+            ? Path.Combine(QuarantineService.RecoveredRoot(), item.DisplayName)
+            : item.OriginalPath!;
+
+        if (File.Exists(destination) || Directory.Exists(destination))
+        {
+            return ActionResult.Fail(
+                $"'{destination}' already exists, so the quarantined item was not restored over it.",
+                "DESTINATION_EXISTS");
+        }
+
+        var parent = Path.GetDirectoryName(destination);
+        if (!string.IsNullOrWhiteSpace(parent))
+        {
+            Directory.CreateDirectory(parent);
+        }
+
+        if (item.IsDirectory)
+        {
+            Directory.Move(item.QuarantinePath, destination);
+        }
+        else
+        {
+            File.Move(item.QuarantinePath, destination);
+        }
+
+        service.DeleteMetadata(item.QuarantinePath);
+        var verified = (File.Exists(destination) || Directory.Exists(destination)) &&
+                       !File.Exists(item.QuarantinePath) && !Directory.Exists(item.QuarantinePath);
+
+        var note = fallbackUsed
+            ? " Its original location was not recorded, so it was restored to the CIPHER Recovered folder."
+            : string.Empty;
+        return ActionResult.Ok(
+            $"Restored '{item.DisplayName}' to '{destination}'.{note}",
+            verified: verified,
+            data: new Dictionary<string, string> { ["restoredPath"] = destination });
     }
 
     private ActionResult MovePath(ParsedCommand command, CommandContext context, bool isRename)

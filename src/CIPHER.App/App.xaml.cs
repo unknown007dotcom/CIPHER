@@ -6,8 +6,17 @@ namespace CIPHER.App;
 
 public partial class App : System.Windows.Application
 {
+    /// <summary>
+    /// Set when started with `--safe-mode`: external delegation and continuous wake
+    /// listening stay disabled for the session so CIPHER can be opened safely to review
+    /// settings, quarantine, and the audit log after a problem.
+    /// </summary>
+    internal static bool IsSafeMode { get; private set; }
+
     protected override void OnStartup(StartupEventArgs e)
     {
+        IsSafeMode = e.Args.Any(arg => string.Equals(arg, "--safe-mode", StringComparison.OrdinalIgnoreCase));
+
         AppDomain.CurrentDomain.UnhandledException += (_, args) =>
         {
             if (args.ExceptionObject is Exception exception)

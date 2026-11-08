@@ -193,11 +193,19 @@ public sealed class DefaultActionPolicy : IActionPolicy
                     "is previewed for approval first; nothing is sent without it. The service's reply is " +
                     "saved locally, and any command it suggests is shown for review — never run automatically.");
 
+            case IntentKind.RestoreQuarantineItem:
+                return Allow(
+                    RiskLevel.Medium,
+                    requiresConfirmation: true,
+                    "Restoring moves a quarantined item back to its original location (never overwriting an existing file) and requires confirmation.");
+
             case IntentKind.SwitchWindow:
             case IntentKind.ReadWebPage:
             case IntentKind.ReadWindowText:
             case IntentKind.VerifyWindowText:
             case IntentKind.ListDirectory:
+            case IntentKind.ListQuarantine:
+            case IntentKind.VerifyAuditLog:
             case IntentKind.Help:
             case IntentKind.GetTime:
             case IntentKind.GetDate:

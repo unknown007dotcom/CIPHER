@@ -29,6 +29,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CIPHER.Delegation", "src\CI
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CIPHER.DelegationTest", "src\CIPHER.DelegationTest\CIPHER.DelegationTest.csproj", "{599178CA-EA1F-4E4A-A298-2F6D6B0188A4}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CIPHER.SecurityTest", "src\CIPHER.SecurityTest\CIPHER.SecurityTest.csproj", "{A5A97323-A97E-4F7B-8B62-13C2C68720E3}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -87,6 +89,10 @@ Global
 		{599178CA-EA1F-4E4A-A298-2F6D6B0188A4}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{599178CA-EA1F-4E4A-A298-2F6D6B0188A4}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{599178CA-EA1F-4E4A-A298-2F6D6B0188A4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A5A97323-A97E-4F7B-8B62-13C2C68720E3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A5A97323-A97E-4F7B-8B62-13C2C68720E3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A5A97323-A97E-4F7B-8B62-13C2C68720E3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A5A97323-A97E-4F7B-8B62-13C2C68720E3}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
