@@ -26,11 +26,11 @@ public partial class App : System.Windows.Application
         {
             _singleInstanceMutex.Dispose();
             _singleInstanceMutex = null;
-            MessageBox.Show(
+            global::System.Windows.MessageBox.Show(
                 "CIPHER is already running. Look for its icon in the taskbar or system tray.",
                 "CIPHER",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
+                global::System.Windows.MessageBoxButton.OK,
+                global::System.Windows.MessageBoxImage.Information);
             Shutdown();
             return;
         }
