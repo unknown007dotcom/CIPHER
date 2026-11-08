@@ -45,7 +45,7 @@ public sealed class DeterministicCommandParser : ICommandParser
             return Create(original, commandText, IntentKind.Help, summary: "Show supported commands", confidence: 1.0);
         }
 
-        if (IsMatch(matchText, "^(what(?:'s| is) the time|time|current time|tell me the time)$"))
+        if (IsMatch(matchText, "^(what(?:'s| is) the time|what time is it|time|current time|tell me the time)$"))
         {
             return Create(original, commandText, IntentKind.GetTime, summary: "Get the current time", confidence: 1.0);
         }
