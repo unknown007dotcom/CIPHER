@@ -17,7 +17,7 @@ public sealed class MainWindowViewModel : ObservableObject
     private string _input = string.Empty;
     private string _statusText = "Ready";
     private string _progressText = "Type a command or say the configured wake phrase after voice is enabled.";
-    private Brush _statusBrush = Brushes.LimeGreen;
+    private System.Windows.Media.Brush _statusBrush = System.Windows.Media.System.Windows.Media.Brushes.LimeGreen;
     private bool _isExpanded = true;
     private bool _isSettingsOpen;
     private bool _isBusy;
@@ -107,7 +107,7 @@ public sealed class MainWindowViewModel : ObservableObject
         private set => SetProperty(ref _progressText, value);
     }
 
-    public Brush StatusBrush
+    public System.Windows.Media.Brush StatusBrush
     {
         get => _statusBrush;
         private set => SetProperty(ref _statusBrush, value);
@@ -287,12 +287,12 @@ public sealed class MainWindowViewModel : ObservableObject
 
         StatusBrush = assistantEvent.State switch
         {
-            AssistantState.Failed => Brushes.IndianRed,
-            AssistantState.Cancelled => Brushes.Goldenrod,
-            AssistantState.WaitingForConfirmation => Brushes.Goldenrod,
-            AssistantState.Completed => Brushes.LimeGreen,
-            AssistantState.Idle => Brushes.LimeGreen,
-            _ => Brushes.DeepSkyBlue
+            AssistantState.Failed => System.Windows.Media.Brushes.IndianRed,
+            AssistantState.Cancelled => System.Windows.Media.Brushes.Goldenrod,
+            AssistantState.WaitingForConfirmation => System.Windows.Media.Brushes.Goldenrod,
+            AssistantState.Completed => System.Windows.Media.Brushes.LimeGreen,
+            AssistantState.Idle => System.Windows.Media.Brushes.LimeGreen,
+            _ => System.Windows.Media.Brushes.DeepSkyBlue
         };
     }
 
