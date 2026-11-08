@@ -80,15 +80,27 @@ jobs:
             Write-Host "::error title=Failed test $escapedTest::$escapedMessage"
           }
 
-      - name: Validate Windows batch scripts
+      - name: Validate setup-dev.bat
         shell: cmd
         run: |
           call setup-dev.bat
           if errorlevel 2 exit /b 1
+
+      - name: Validate build.bat
+        shell: cmd
+        run: |
           call build.bat Release
           if errorlevel 1 exit /b 1
+
+      - name: Validate test.bat
+        shell: cmd
+        run: |
           call test.bat Release
           if errorlevel 1 exit /b 1
+
+      - name: Validate package.bat gate
+        shell: cmd
+        run: |
           call package.bat Release
           if not errorlevel 1 (
             echo package.bat unexpectedly succeeded before the offline installer stage was complete.
