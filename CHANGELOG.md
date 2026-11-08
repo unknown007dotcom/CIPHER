@@ -29,7 +29,13 @@ once the first tested release exists.
   editor identification, typing, window switching, return, and read-back verification;
   it passes in GitHub-hosted Windows CI (non-interactive session).
 - System tray icon with show/hide/exit and a Ctrl+Alt+C global show/hide hotkey.
-- Additional parser, policy, and text-matching tests (30 automated test cases total).
+- Named UI-element targeting: `click <name> button in <window>` and
+  `type <text> into <field> in <window>` with UI Automation pattern activation,
+  read-back verification, dangerous-control confirmation, and credential-field refusal.
+- Stage 4 verification harness (Calculator buttons/display plus CIPHER's own window)
+  passing in GitHub-hosted Windows CI; it also caught and fixed a WPF startup crash
+  (TwoWay binding to a read-only property) and added a local app crash log.
+- Additional parser, policy, and text-matching tests (38 automated test cases total).
 
 ### Not yet released
 

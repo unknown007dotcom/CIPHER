@@ -14,6 +14,8 @@ Current xUnit coverage:
 - wake-phrase detection and removal;
 - open/type/press/help/time/date/system-info parsing;
 - read/verify window-text command parsing;
+- named-element click and type-into-field command parsing (including names containing
+  " in "), dangerous-control confirmation, and credential-field blocking;
 - whitespace/case-tolerant text matching used for editor read-back verification;
 - folder and move command parsing;
 - unknown-command suggestions;
@@ -72,6 +74,15 @@ verifies the sentence through UI Automation read-back plus the
 `verify Notepad contains ...` command. Typing also reports itself as verified only when the
 typed text is observed in the editor afterwards. The harness refuses to run if Notepad already
 contains user text.
+
+### Stage 4 named-element targeting
+
+Automated by `CIPHER.MilestoneTest.exe stage4 --app <path-to-CIPHER.exe>` and passing in
+GitHub-hosted Windows CI (see `docs/TEST_REPORT_STAGE4.md`). It clicks named Calculator
+buttons (5 + 3 =), verifies the displayed result through UI Automation, types into
+CIPHER's own named command field with read-back verification, and clicks CIPHER's Clear
+button. This harness caught a real WPF startup crash (a TwoWay binding against a
+read-only property), which is why shell-level harnesses matter even when unit tests pass.
 
 ### Safety tests
 

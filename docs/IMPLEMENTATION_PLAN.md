@@ -29,7 +29,9 @@ Deliverables:
 - [x] Add root batch scripts with logging, exit codes, and fail-closed packaging gates.
 - [x] Document compatibility, dependency risks, and installer constraints.
 - [x] Pass Windows CI (GitHub Actions run 42480109478, 2026-11-08).
-- [ ] Run the WPF shell interactively on a Windows machine and record the result.
+- [x] Launch the WPF shell on Windows and drive it through UI Automation (Stage 4 harness,
+  non-interactive CI session; this also caught and fixed a startup binding crash).
+- [ ] Run the WPF shell interactively on a physical Windows machine and record the result.
 
 Exit gate: solution builds on Windows; tests pass; known limitations are documented.
 
@@ -84,9 +86,13 @@ Implemented foundation:
 - [x] Bounded deterministic intent grammar.
 - [x] Application/window/input/file/information intents.
 - [x] Confidence values and examples for unknown commands.
-- [ ] User-defined application aliases persisted in memory.
-- [ ] Richer UI Automation element targeting (`click Save button`, named text fields).
-- [ ] Command disambiguation prompts.
+- [ ] User-defined application aliases persisted in memory (requires Stage 7 storage).
+- [x] Richer UI Automation element targeting: `click <name> button in <window>` and
+  `type <text> into <field> in <window>`, with name/AutomationId/partial matching,
+  semantic activation patterns, toggle-state verification, and credential-field refusal.
+  Verified end-to-end by the Stage 4 harness (Calculator + CIPHER's own window) in
+  GitHub-hosted Windows CI; see `docs/TEST_REPORT_STAGE4.md`.
+- [ ] Command disambiguation prompts (multiple equally scored element matches).
 
 Exit gate: parser/policy regression suite passes and ambiguous commands do not execute blindly.
 

@@ -7,10 +7,10 @@ interface, deterministic local commands, Windows automation, an explicit action-
 and a staged path toward voice, browser automation, external-AI delegation, persistent memory,
 and a real offline WiX MSI installer.
 
-> Current status: **Stages 1–3 in progress; Windows CI passing, including the automated
-> Notepad milestone harness.** This repository is not yet a release and does not yet contain a
-> completed `CIPHER.msi`. Interactive WPF/desktop tests on a physical Windows session are still
-> required before release.
+> Current status: **Stages 1–4 implemented; Windows CI passing, including the automated
+> Notepad milestone and named-element targeting harnesses.** This repository is not yet a
+> release and does not yet contain a completed `CIPHER.msi`. Interactive WPF/desktop tests
+> on a physical Windows session are still required before release.
 
 ## What is implemented now
 
@@ -77,6 +77,8 @@ type Hello from CIPHER
 press Ctrl+S
 read text in Notepad
 verify Notepad contains Hello from CIPHER
+click Save button in Notepad
+type hello into Search field in Notepad
 create folder C:\Temp\CIPHER-Test
 create folder in C:\Temp called CIPHER-Test
 create file C:\Temp\cipher-note.txt
@@ -176,6 +178,7 @@ See [SECURITY.md](SECURITY.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 - [Testing strategy](docs/TESTING.md)
 - [Stage 1 test report](docs/TEST_REPORT_STAGE1.md)
 - [Stage 3 Notepad milestone report](docs/TEST_REPORT_STAGE3.md)
+- [Stage 4 element targeting report](docs/TEST_REPORT_STAGE4.md)
 - [Changelog](CHANGELOG.md)
 
 ## License
