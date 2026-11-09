@@ -234,8 +234,9 @@ jobs:
         timeout-minutes: 10
         shell: pwsh
         run: |
+          # The script fails the step itself on any error ($ErrorActionPreference
+          # is Stop inside it); $LASTEXITCODE only tracks native commands.
           ./scripts/stage-dependencies.ps1
-          if ($LASTEXITCODE -ne 0) { throw "Dependency staging failed with exit code $LASTEXITCODE." }
 
       - name: Build CIPHER.msi via package.bat (Stage 10)
         timeout-minutes: 20
