@@ -48,6 +48,7 @@ if errorlevel 1 (
 set "MSI="
 for /r "%ROOT%src\CIPHER.Installer\bin" %%F in (CIPHER.msi) do if not defined MSI set "MSI=%%F"
 if not defined MSI (
+  echo [ERROR] The WiX build reported success but CIPHER.msi was not found under src\CIPHER.Installer\bin. >> "%LOG%"
   echo [ERROR] The WiX build reported success but CIPHER.msi was not found. See %LOG%
   exit /b 6
 )
@@ -55,9 +56,11 @@ if not defined MSI (
 if not exist "%ROOT%artifacts" mkdir "%ROOT%artifacts" >nul 2>&1
 copy /y "%MSI%" "%ROOT%artifacts\CIPHER.msi" >nul
 if not exist "%ROOT%artifacts\CIPHER.msi" (
+  echo [ERROR] Copying the built MSI to artifacts\CIPHER.msi failed. Source: %MSI% >> "%LOG%"
   echo [ERROR] Copying the built MSI to artifacts\CIPHER.msi failed. Source: %MSI%
   exit /b 7
 )
+echo [PASSED] CIPHER.msi built successfully: %MSI% >> "%LOG%"
 echo [PASSED] CIPHER.msi built successfully: %ROOT%artifacts\CIPHER.msi
 echo [INFO] Harvested MSI: %MSI%
 echo [INFO] Log: %LOG%
