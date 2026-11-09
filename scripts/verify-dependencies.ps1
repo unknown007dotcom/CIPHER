@@ -80,6 +80,8 @@ else {
 if ($failures.Count -gt 0) {
     foreach ($failure in $failures) {
         Write-Host "[ERROR] $failure"
+        $escaped = $failure.Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+        Write-Host "::error title=Verify dependencies::$escaped"
     }
     exit 1
 }

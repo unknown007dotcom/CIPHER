@@ -41,12 +41,31 @@ try {
     Write-Host '[OK] Vosk model'
 
     # --- libvosk native -----------------------------------------------------------
-    $nugetRoot = Join-Path $env:USERPROFILE '.nuget/packages'
-    $libvosk = Get-ChildItem -Path (Join-Path $nugetRoot 'vosk') -Recurse -Filter 'libvosk.dll' -ErrorAction SilentlyContinue |
-        Where-Object { $_.FullName -match 'win-x64' } | Select-Object -First 1
-    if (-not $libvosk) {
-        throw 'libvosk.dll (win-x64) not found in the NuGet cache. Run: dotnet restore CIPHER.sln'
+    $libvosk = $null
+    $searched = [System.Collections.Generic.List[string]]::new()
+    $nugetVosk = Join-Path $env:USERPROFILE '.nuget/packages/vosk'
+    if (Test-Path $nugetVosk) {
+        $searched.Add($nugetVosk)
+        $libvosk = Get-ChildItem -Path $nugetVosk -Recurse -Filter 'libvosk.dll' -ErrorAction SilentlyContinue |
+            Sort-Object { if ($_.FullName -match 'win-x64|x64') { 0 } else { 1 } } |
+            Select-Object -First 1
     }
+    if (-not $libvosk) {
+        # Fall back to a previous build output (Voice/harness publishes carry it).
+        foreach ($binRoot in @('src/CIPHER.VoiceTest/bin', 'src/CIPHER.App/bin', 'src/CIPHER.Voice/bin')) {
+            $candidateRoot = Join-Path $RepoRoot $binRoot
+            if (Test-Path $candidateRoot) {
+                $searched.Add($candidateRoot)
+                $libvosk = Get-ChildItem -Path $candidateRoot -Recurse -Filter 'libvosk.dll' -ErrorAction SilentlyContinue |
+                    Select-Object -First 1
+                if ($libvosk) { break }
+            }
+        }
+    }
+    if (-not $libvosk) {
+        throw "libvosk.dll not found. Run: dotnet restore CIPHER.sln && dotnet build CIPHER.sln. Searched: $($searched -join '; ')"
+    }
+    Write-Host "libvosk source: $($libvosk.FullName)"
     $nativeDir = Join-Path $deps 'vosk/native/win-x64'
     New-Item -ItemType Directory -Path $nativeDir -Force | Out-Null
     Copy-Item $libvosk.FullName (Join-Path $nativeDir 'libvosk.dll') -Force
@@ -124,6 +143,11 @@ try {
         }
     Set-Content -Path $manifest -Value $lines -Encoding ascii
     Write-Host "[OK] manifest.sha256 regenerated ($($lines.Count) files)"
+}
+catch {
+    $escaped = $_.Exception.Message.Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+    Write-Host "::error title=Stage dependencies::$escaped"
+    throw
 }
 finally {
     Remove-Item $temp -Recurse -Force -ErrorAction SilentlyContinue
