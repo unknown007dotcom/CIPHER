@@ -7,11 +7,13 @@ interface, deterministic local commands, Windows automation, an explicit action-
 and a staged path toward voice, browser automation, external-AI delegation, persistent memory,
 and a real offline WiX MSI installer.
 
-> Current status: **Stages 1–8 implemented; Windows CI passing, including the automated
+> Current status: **Stages 1–10 implemented; Windows CI passing, including the automated
 > Notepad milestone, named-element targeting, browser automation, offline voice,
-> kill/restart memory-recovery, and external-AI delegation harnesses.** This repository
-> is not yet a release and does not yet contain a completed `CIPHER.msi`. Interactive
-> WPF/desktop tests on a physical Windows session are still required before release.
+> kill/restart memory-recovery, external-AI delegation, security-gate harnesses, and a
+> CI-built `CIPHER.msi` (~347 MiB) that installs, verifies, and uninstalls on the
+> runner.** This repository is not yet a release: clean-machine offline install
+> validation on Windows 10/11 VMs and interactive WPF/desktop tests on a physical
+> Windows session are still required before release.
 
 ## What is implemented now
 
@@ -80,13 +82,13 @@ and a real offline WiX MSI installer.
 
 The following are planned stages, not current claims:
 
-- Bundling of the Vosk model and eSpeak NG inside the installer (Stage 10); until then
-  voice needs the model folder described above.
+- Clean-machine offline install/uninstall verification of `CIPHER.msi` on Windows 10/11
+  VMs (CI builds the MSI and proves install → shortcut → uninstall on the runner;
+  see `docs/TEST_REPORT_STAGE10.md`).
 - Browser-based AI platforms and multi-step delegated workflows (Stage 8 follow-ups;
   API-based delegation is implemented).
 - Windows Graphics Capture/OCR fallback.
-- Performance benchmark report against the target budgets.
-- Final WiX `CIPHER.msi` and clean-machine offline install/uninstall verification.
+- Performance benchmark report against the target budgets (Stage 11).
 
 The microphone button is push-to-talk and only opens the microphone while listening is
 active; when the speech model is missing it explains where to install it instead of
@@ -152,7 +154,7 @@ From a Developer PowerShell or Command Prompt:
 setup-dev.bat
 build.bat Release
 test.bat Release
-src\CIPHER.App\bin\Release\net10.0-windows\CIPHER.exe
+src\CIPHER.App\bin\Release\net10.0-windows\win-x64\CIPHER.exe
 ```
 
 Or with the .NET CLI:
@@ -166,6 +168,18 @@ dotnet test CIPHER.sln -c Release
 The WPF application must be built/run on Windows. The platform-independent core and its tests are
 kept separate so command/security behavior can evolve without coupling every rule to WPF.
 
+## Building the offline installer (Stage 10)
+
+```powershell
+dotnet restore CIPHER.sln
+pwsh scripts\stage-dependencies.ps1   # one-time payload staging (downloads here only)
+package.bat Release                    # produces artifacts\CIPHER.msi
+```
+
+The MSI is per-user (no admin prompt), installs under `%LocalAppData%\CIPHERProgram` with a
+Start menu shortcut, and bundles the Vosk model, eSpeak NG, Chromium, and license notices —
+it never downloads anything at install time. See `docs/TEST_REPORT_STAGE10.md`.
+
 ## Batch scripts
 
 | Script | Purpose |
@@ -174,7 +188,8 @@ kept separate so command/security behavior can evolve without coupling every rul
 | `install-dependencies.bat` | Verifies the staged offline dependency bundle. It never downloads dependencies and fails closed when payloads are missing. |
 | `build.bat` | Restores and builds the solution with logging and exit codes. |
 | `test.bat` | Runs automated tests, writes a TRX file, and creates a test report. |
-| `package.bat` | Gates packaging on dependency/installer readiness. It will not create a fake MSI. |
+| `package.bat` | Verifies the dependency bundle (SHA-256 manifest), publishes the app self-contained, and builds the real `CIPHER.msi` into `artifacts\`. |
+| `scripts\stage-dependencies.ps1` | One-time staging of offline payloads (Vosk model, libvosk, eSpeak NG, Chromium, licenses) + manifest regeneration. The only step that downloads. |
 | `clean.bat` | Removes `bin`, `obj`, test results, and `.vs` data without deleting source, dependencies, release artifacts, or user data. |
 
 ## Repository layout
@@ -197,6 +212,8 @@ CIPHER/
     CIPHER.Delegation/     External AI delegation with DPAPI key store (Stage 8)
     CIPHER.DelegationTest/ Loopback fake-endpoint delegation harness (Stage 8)
     CIPHER.SecurityTest/   Cross-process audit-chain harness (Stage 9)
+    CIPHER.Installer/      WiX v5 per-user MSI project (Stage 10; built by package.bat)
+  scripts/               Dependency staging + SHA-256 manifest verification (Stage 10)
   docs/
   dependencies/       Offline dependency staging instructions (large files not in Git)
   .github/workflows/  Windows build/test pipeline
@@ -228,6 +245,7 @@ See [SECURITY.md](SECURITY.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 - [Stage 7 memory and recovery report](docs/TEST_REPORT_STAGE7.md)
 - [Stage 8 external AI delegation report](docs/TEST_REPORT_STAGE8.md)
 - [Stage 9 security & recovery report](docs/TEST_REPORT_STAGE9.md)
+- [Stage 10 WiX MSI report](docs/TEST_REPORT_STAGE10.md)
 - [Threat model](docs/THREAT_MODEL.md)
 - [Changelog](CHANGELOG.md)
 

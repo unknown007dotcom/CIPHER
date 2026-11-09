@@ -9,6 +9,13 @@ once the first tested release exists.
 
 ### Added
 
+- Stage 10 offline WiX MSI (CI-verified; see `docs/TEST_REPORT_STAGE10.md`): per-user
+  x64 `CIPHER.msi` (~347 MiB) bundling the self-contained app, Vosk model, eSpeak NG,
+  Chromium, and licenses; dependency staging with an enforced SHA-256 manifest;
+  installed-layout path fixes (bundled browser/model/speech resolution); x64/win-x64
+  architecture lock; tray-first close with awaited shutdown; per-user single-instance
+  mutex. CI builds the MSI and proves payload extraction plus install/uninstall.
+
 - Stage 9 security & recovery hardening (CI-verified; see `docs/TEST_REPORT_STAGE9.md`):
   hash-chained local audit log with rotation and `verify audit log`, credential-shaped
   redaction for journal/audit writes, quarantine list/restore with original-location

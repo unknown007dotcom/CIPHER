@@ -214,6 +214,11 @@ Exit gate: on a clean offline Windows 10 and Windows 11 x64 VM:
 5. Uninstall.
 6. Verify files, shortcuts, and settings behavior match the documented policy.
 
+**Stage 10 status:** the MSI is built and proven in CI (payload extraction +
+install/verify/uninstall on the runner; see `docs/TEST_REPORT_STAGE10.md`). Items 1–6
+above remain as the manual clean-VM release gate. Remaining stage: 11 (performance and
+release).
+
 ### Stage 11 — Performance and release
 
 Measure, do not estimate:
