@@ -273,7 +273,12 @@ jobs:
           $proc = Start-Process msiexec.exe -ArgumentList "/a `"$PWD\artifacts\CIPHER.msi`" /qn TARGETDIR=`"$extract`"" -Wait -PassThru
           if ($proc.ExitCode -ne 0) { throw "MSI administrative extraction failed with exit code $($proc.ExitCode)." }
           $root = Get-ChildItem -Path $extract -Recurse -Filter "CIPHER.exe" | Select-Object -First 1
-          if (-not $root) { throw "CIPHER.exe not found in the extracted MSI." }
+          if (-not $root) {
+            $listing = (Get-ChildItem -Path $extract -Recurse -File | Select-Object -First 20 -ExpandProperty FullName) -join "`n"
+            $escaped = $listing.Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+            Write-Host "::error title=MSI extract listing::$escaped"
+            throw "CIPHER.exe not found in the extracted MSI."
+          }
           $installDir = $root.DirectoryName
           foreach ($relative in @(
             "models\vosk-model-small-en-us-0.15\conf\model.conf",
@@ -281,10 +286,16 @@ jobs:
             "licenses\LICENSE-VOSK.txt",
             "licenses\LICENSE-ESPEAK-NG.txt",
             "licenses\LICENSE-PLAYWRIGHT.txt")) {
-            if (-not (Test-Path (Join-Path $installDir $relative))) { throw "Missing from MSI payload: $relative" }
+            if (-not (Test-Path (Join-Path $installDir $relative))) {
+              Write-Host "::error title=MSI payload::Missing from MSI payload: $relative (install dir: $installDir)"
+              throw "Missing from MSI payload: $relative"
+            }
           }
           $chrome = Get-ChildItem -Path (Join-Path $installDir "playwright\browsers") -Recurse -Filter "chrome.exe" | Select-Object -First 1
-          if (-not $chrome) { throw "Bundled Chromium (chrome.exe) not found in the extracted MSI." }
+          if (-not $chrome) {
+            Write-Host "::error title=MSI payload::Bundled Chromium (chrome.exe) not found under $installDir\playwright\browsers"
+            throw "Bundled Chromium (chrome.exe) not found in the extracted MSI."
+          }
           Write-Host "MSI payload verified under $installDir"
 
       - name: Install and uninstall CIPHER.msi (Stage 10)
