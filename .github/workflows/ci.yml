@@ -257,9 +257,11 @@ jobs:
           if ($LASTEXITCODE -ne 0) {
             foreach ($log in @("logs/package-Release.log", "logs/install-dependencies.log")) {
               if (Test-Path $log) {
-                $tail = (Get-Content $log -Tail 20) -join "`n"
-                $escaped = $tail.Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
-                Write-Host "::error title=package.bat log::$escaped"
+                $errors = (Get-Content $log | Where-Object { $_ -match 'error|\[ERROR\]|FAILED|Exception' } | Select-Object -First 12) -join "`n"
+                if ($LASTEXITCODE -eq 0 -or $errors) {
+                  $escaped = $errors.Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+                  Write-Host "::error title=package.bat log::$escaped"
+                }
               }
             }
             throw "package.bat failed with exit code $LASTEXITCODE."
