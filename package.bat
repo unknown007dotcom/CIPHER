@@ -54,6 +54,10 @@ if not defined MSI (
 
 if not exist "%ROOT%artifacts" mkdir "%ROOT%artifacts" >nul 2>&1
 copy /y "%MSI%" "%ROOT%artifacts\CIPHER.msi" >nul
+if not exist "%ROOT%artifacts\CIPHER.msi" (
+  echo [ERROR] Copying the built MSI to artifacts\CIPHER.msi failed. Source: %MSI%
+  exit /b 7
+)
 echo [PASSED] CIPHER.msi built successfully: %ROOT%artifacts\CIPHER.msi
 echo [INFO] Harvested MSI: %MSI%
 echo [INFO] Log: %LOG%

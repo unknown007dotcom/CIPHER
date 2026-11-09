@@ -270,11 +270,17 @@ jobs:
         shell: pwsh
         run: |
           $extract = Join-Path $env:RUNNER_TEMP "cipher-msi-extract"
+          $found = Get-ChildItem -Path $PWD -Recurse -Filter "CIPHER.msi" -ErrorAction SilentlyContinue | Select-Object -First 1
           $msiPath = Join-Path $PWD "artifacts\CIPHER.msi"
+          if (-not (Test-Path $msiPath) -and $found) {
+            $msiPath = $found.FullName
+            Write-Host "::notice title=MSI location::Using MSI found at $msiPath"
+          }
           if (-not (Test-Path $msiPath)) {
             Write-Host "::error title=MSI payload::CIPHER.msi not found at $msiPath (PWD=$PWD)"
             throw "CIPHER.msi not found at $msiPath."
           }
+          Write-Host "::notice title=MSI payload::CIPHER.msi size: $((Get-Item $msiPath).Length) bytes"
           $proc = Start-Process msiexec.exe -ArgumentList "/a `"$msiPath`" /qn TARGETDIR=`"$extract`"" -Wait -PassThru
           if ($proc.ExitCode -ne 0) {
             Write-Host "::error title=MSI payload::Administrative extraction exit code $($proc.ExitCode) for $msiPath"
