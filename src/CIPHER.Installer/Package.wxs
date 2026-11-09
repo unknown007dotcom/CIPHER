@@ -1,0 +1,53 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="CIPHER"
+           Manufacturer="CIPHER Project"
+           Version="1.0.0.0"
+           UpgradeCode="7B94B536-5E48-4C37-9A14-8B1E4C9A1001"
+           Scope="perUser"
+           Compressed="yes">
+
+    <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <!-- Per-user install under %LocalAppData%\CIPHERProgram. The folder name keeps
+         program files separate from CIPHER's data root (%LocalAppData%\CIPHER),
+         which uninstall intentionally leaves untouched. -->
+    <StandardDirectory Id="LocalAppDataFolder">
+      <Directory Id="INSTALLFOLDER" Name="CIPHERProgram">
+        <Directory Id="MODELSDIR" Name="models" />
+        <Directory Id="TOOLSDIR" Name="tools">
+          <Directory Id="ESPEAKDIR" Name="espeak-ng" />
+        </Directory>
+        <Directory Id="PLAYWRIGHTDIR" Name="playwright">
+          <Directory Id="BROWSERSDIR" Name="browsers" />
+        </Directory>
+        <Directory Id="LICENSESDIR" Name="licenses" />
+      </Directory>
+    </StandardDirectory>
+
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Component Id="ApplicationShortcut" Guid="054081CA-C1B0-4BC0-A703-DAB39AC03F94">
+        <Shortcut Id="CIPHERStartMenuShortcut"
+                  Name="CIPHER"
+                  Description="CIPHER — offline desktop assistant"
+                  Target="[INSTALLFOLDER]CIPHER.exe"
+                  WorkingDirectory="INSTALLFOLDER" />
+        <RegistryValue Root="HKCU"
+                       Key="Software\CIPHER"
+                       Name="installed"
+                       Type="integer"
+                       Value="1"
+                       KeyPath="yes" />
+      </Component>
+    </StandardDirectory>
+
+    <Feature Id="MainFeature" Title="CIPHER Offline Assistant" Level="1">
+      <Files Directory="INSTALLFOLDER" Include="$(var.PublishDir)\**" />
+      <Files Directory="MODELSDIR" Include="$(var.DepsDir)\vosk\**" />
+      <Files Directory="ESPEAKDIR" Include="$(var.DepsDir)\espeak-ng\**" />
+      <Files Directory="BROWSERSDIR" Include="$(var.DepsDir)\playwright\browsers\**" />
+      <Files Directory="LICENSESDIR" Include="$(var.DepsDir)\licenses\**" />
+      <ComponentRef Id="ApplicationShortcut" />
+    </Feature>
+  </Package>
+</Wix>

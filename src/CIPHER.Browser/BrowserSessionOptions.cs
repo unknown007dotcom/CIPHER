@@ -12,6 +12,29 @@ public sealed record BrowserSessionOptions
     /// <summary>Default timeout for element waits, in milliseconds.</summary>
     public float DefaultTimeoutMilliseconds { get; init; } = 15_000;
 
+    /// <summary>Optional explicit path to a Chromium executable.</summary>
+    public string? ExecutablePath { get; init; }
+
+    /// <summary>
+    /// Directory containing bundled Playwright browsers. Defaults to the
+    /// <c>playwright\browsers</c> folder next to the application (the Stage 10 installer
+    /// layout) when it exists, so an offline install never depends on
+    /// <c>%LocalAppData%\ms-playwright</c>.
+    /// </summary>
+    public string? BrowsersPath { get; init; } = ResolveDefaultBrowsersPath();
+
+    private static string? ResolveDefaultBrowsersPath()
+    {
+        var bundled = Path.Combine(AppContext.BaseDirectory, "playwright", "browsers");
+        if (Directory.Exists(bundled))
+        {
+            return bundled;
+        }
+
+        var legacy = Path.Combine(AppContext.BaseDirectory, "browsers");
+        return Directory.Exists(legacy) ? legacy : null;
+    }
+
     private static string CreateDefaultDownloadsDirectory()
     {
         var localApplicationData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);

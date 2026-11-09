@@ -34,7 +34,11 @@ public sealed class EspeakSpeechSynthesizer : IDisposable
     public static string? ResolveExecutable(string? configuredPath)
     {
         var candidates = new List<string?> { configuredPath };
-        candidates.Add(Path.Combine(AppContext.BaseDirectory, "tools", "espeak-ng", "espeak-ng.exe"));
+        var baseDirectory = AppContext.BaseDirectory;
+        candidates.Add(Path.Combine(baseDirectory, "tools", "espeak-ng", "espeak-ng.exe"));
+        candidates.Add(Path.Combine(baseDirectory, "tools", "espeak-ng", "bin", "espeak-ng.exe"));
+        candidates.Add(Path.Combine(baseDirectory, "espeak-ng", "espeak-ng.exe"));
+        candidates.Add(Path.Combine(baseDirectory, "espeak-ng", "bin", "espeak-ng.exe"));
 
         var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
         if (!string.IsNullOrWhiteSpace(programFiles))
@@ -199,15 +203,21 @@ public sealed class EspeakSpeechSynthesizer : IDisposable
             RedirectStandardError = true
         };
 
-        // Extracted/portable layouts keep the voice data next to the executable; point
-        // eSpeak NG at it explicitly so it works regardless of installation state.
+        // Extracted/portable layouts keep the voice data either next to the executable
+        // (child "espeak-ng-data") or — when the exe lives in a "bin" subfolder — as a
+        // sibling of that folder. Point eSpeak NG at whichever exists.
         var executableDirectory = Path.GetDirectoryName(ExecutablePath!);
         if (!string.IsNullOrWhiteSpace(executableDirectory))
         {
-            var dataDirectory = Path.Combine(executableDirectory, "espeak-ng-data");
-            if (Directory.Exists(dataDirectory))
+            var directDataDirectory = Path.Combine(executableDirectory, "espeak-ng-data");
+            var parentDataDirectory = Path.GetFullPath(Path.Combine(executableDirectory, "..", "espeak-ng-data"));
+            if (Directory.Exists(directDataDirectory))
             {
-                startInfo.Environment["ESPEAK_DATA_PATH"] = dataDirectory;
+                startInfo.Environment["ESPEAK_DATA_PATH"] = directDataDirectory;
+            }
+            else if (Directory.Exists(parentDataDirectory))
+            {
+                startInfo.Environment["ESPEAK_DATA_PATH"] = parentDataDirectory;
             }
         }
 

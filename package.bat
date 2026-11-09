@@ -31,22 +31,30 @@ if not exist "%ROOT%src\CIPHER.Installer\CIPHER.Installer.wixproj" (
   exit /b 3
 )
 
-where wix >nul 2>&1
+echo [CIPHER] Publishing CIPHER.App (win-x64, %CONFIG%, self-contained)...
+dotnet publish "%ROOT%src\CIPHER.App\CIPHER.App.csproj" -c %CONFIG% -r win-x64 --self-contained true -o "%ROOT%artifacts\publish\win-x64" >> "%LOG%" 2>&1
 if errorlevel 1 (
-  where candle.exe >nul 2>&1
-  if errorlevel 1 (
-    echo [ERROR] WiX Toolset was not found. No MSI was created.
-    exit /b 4
-  )
+  echo [ERROR] dotnet publish failed. See %LOG%
+  exit /b 4
 )
 
-echo [CIPHER] Building application before packaging...
-call "%ROOT%build.bat" %CONFIG%
+echo [CIPHER] Building CIPHER.msi (%CONFIG%)...
+dotnet build "%ROOT%src\CIPHER.Installer\CIPHER.Installer.wixproj" -c %CONFIG% >> "%LOG%" 2>&1
 if errorlevel 1 (
-  echo [ERROR] Application build failed. Packaging stopped.
+  echo [ERROR] WiX MSI build failed. See %LOG%
   exit /b 5
 )
 
-echo [ERROR] Installer project validation is present, but the final WiX authoring step is not implemented yet.
-echo [ERROR] No MSI was created.
-exit /b 6
+set "MSI="
+for /r "%ROOT%src\CIPHER.Installer\bin" %%F in (CIPHER.msi) do if not defined MSI set "MSI=%%F"
+if not defined MSI (
+  echo [ERROR] The WiX build reported success but CIPHER.msi was not found. See %LOG%
+  exit /b 6
+)
+
+if not exist "%ROOT%artifacts" mkdir "%ROOT%artifacts" >nul 2>&1
+copy /y "%MSI%" "%ROOT%artifacts\CIPHER.msi" >nul
+echo [PASSED] CIPHER.msi built successfully: %ROOT%artifacts\CIPHER.msi
+echo [INFO] Harvested MSI: %MSI%
+echo [INFO] Log: %LOG%
+exit /b 0

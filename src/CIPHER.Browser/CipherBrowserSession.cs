@@ -243,10 +243,22 @@ public sealed class CipherBrowserSession : IAsyncDisposable
         }
 
         cancellationToken.ThrowIfCancellationRequested();
+
+        // Offline (MSI) installs carry their own Chromium: point Playwright at the
+        // bundled browsers before creating the driver, unless the environment already
+        // specifies a location.
+        if (!string.IsNullOrWhiteSpace(_options.BrowsersPath) &&
+            Directory.Exists(_options.BrowsersPath) &&
+            string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("PLAYWRIGHT_BROWSERS_PATH")))
+        {
+            Environment.SetEnvironmentVariable("PLAYWRIGHT_BROWSERS_PATH", _options.BrowsersPath);
+        }
+
         _playwright = await Playwright.CreateAsync().ConfigureAwait(false);
         _browser = await _playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
         {
-            Headless = _options.Headless
+            Headless = _options.Headless,
+            ExecutablePath = string.IsNullOrWhiteSpace(_options.ExecutablePath) ? null : _options.ExecutablePath
         }).ConfigureAwait(false);
         _context = await _browser.NewContextAsync(new BrowserNewContextOptions
         {

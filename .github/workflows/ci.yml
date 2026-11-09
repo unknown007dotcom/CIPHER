@@ -120,7 +120,7 @@ jobs:
       - name: Run Stage 4 element targeting harness (experimental, non-interactive session)
         continue-on-error: true
         timeout-minutes: 3
-        run: ./src/CIPHER.MilestoneTest/bin/Release/net10.0-windows/CIPHER.MilestoneTest.exe stage4 --app ./src/CIPHER.App/bin/Release/net10.0-windows/CIPHER.exe
+        run: ./src/CIPHER.MilestoneTest/bin/Release/net10.0-windows/CIPHER.MilestoneTest.exe stage4 --app ./src/CIPHER.App/bin/Release/net10.0-windows/win-x64/CIPHER.exe
 
       - name: Install Playwright Chromium for Stage 5 harness
         run: pwsh src/CIPHER.BrowserTest/bin/Release/net10.0/playwright.ps1 install chromium
@@ -229,6 +229,57 @@ jobs:
         run: |
           ./src/CIPHER.MilestoneTest/bin/Release/net10.0-windows/CIPHER.MilestoneTest.exe stage9
           if ($LASTEXITCODE -ne 0) { throw "Stage 9 security gate harness failed with exit code $LASTEXITCODE." }
+
+      - name: Stage offline dependencies (Stage 10)
+        timeout-minutes: 10
+        shell: pwsh
+        run: |
+          ./scripts/stage-dependencies.ps1
+          if ($LASTEXITCODE -ne 0) { throw "Dependency staging failed with exit code $LASTEXITCODE." }
+
+      - name: Build CIPHER.msi via package.bat (Stage 10)
+        timeout-minutes: 20
+        shell: cmd
+        run: |
+          call package.bat Release
+          if errorlevel 1 exit /b 1
+
+      - name: Verify MSI payload by administrative extraction (Stage 10)
+        timeout-minutes: 10
+        shell: pwsh
+        run: |
+          $extract = Join-Path $env:RUNNER_TEMP "cipher-msi-extract"
+          $proc = Start-Process msiexec.exe -ArgumentList "/a `"$PWD\artifacts\CIPHER.msi`" /qn TARGETDIR=`"$extract`"" -Wait -PassThru
+          if ($proc.ExitCode -ne 0) { throw "MSI administrative extraction failed with exit code $($proc.ExitCode)." }
+          $root = Get-ChildItem -Path $extract -Recurse -Filter "CIPHER.exe" | Select-Object -First 1
+          if (-not $root) { throw "CIPHER.exe not found in the extracted MSI." }
+          $installDir = $root.DirectoryName
+          foreach ($relative in @(
+            "models\vosk-model-small-en-us-0.15\conf\model.conf",
+            "tools\espeak-ng\espeak-ng.exe",
+            "licenses\LICENSE-VOSK.txt",
+            "licenses\LICENSE-ESPEAK-NG.txt",
+            "licenses\LICENSE-PLAYWRIGHT.txt")) {
+            if (-not (Test-Path (Join-Path $installDir $relative))) { throw "Missing from MSI payload: $relative" }
+          }
+          $chrome = Get-ChildItem -Path (Join-Path $installDir "playwright\browsers") -Recurse -Filter "chrome.exe" | Select-Object -First 1
+          if (-not $chrome) { throw "Bundled Chromium (chrome.exe) not found in the extracted MSI." }
+          Write-Host "MSI payload verified under $installDir"
+
+      - name: Install and uninstall CIPHER.msi (Stage 10)
+        timeout-minutes: 10
+        shell: pwsh
+        run: |
+          $install = Start-Process msiexec.exe -ArgumentList "/i `"$PWD\artifacts\CIPHER.msi`" /qn /norestart" -Wait -PassThru
+          if ($install.ExitCode -ne 0) { throw "MSI install failed with exit code $($install.ExitCode)." }
+          $exe = Join-Path $env:LOCALAPPDATA "CIPHERProgram\CIPHER.exe"
+          if (-not (Test-Path $exe)) { throw "Installed CIPHER.exe not found at $exe" }
+          $shortcut = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\CIPHER.lnk"
+          if (-not (Test-Path $shortcut)) { throw "Start menu shortcut not found at $shortcut" }
+          Write-Host "Installed CIPHER verified; uninstalling."
+          $uninstall = Start-Process msiexec.exe -ArgumentList "/x `"$PWD\artifacts\CIPHER.msi`" /qn /norestart" -Wait -PassThru
+          if ($uninstall.ExitCode -ne 0) { throw "MSI uninstall failed with exit code $($uninstall.ExitCode)." }
+          if (Test-Path (Join-Path $env:LOCALAPPDATA "CIPHERProgram")) { throw "CIPHERProgram folder remained after uninstall." }
 
       - name: Publish Windows x64 app (framework-dependent validation build)
         run: >-
