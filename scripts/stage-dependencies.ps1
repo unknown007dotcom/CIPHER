@@ -120,7 +120,7 @@ try {
     # --- Licenses ----------------------------------------------------------------------
     $licenseDir = Join-Path $deps 'licenses'
     New-Item -ItemType Directory -Path $licenseDir -Force | Out-Null
-    Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/alphacep/vosk-api/master/LICENSE' -OutFile (Join-Path $licenseDir 'LICENSE-VOSK.txt')
+    Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/alphacep/vosk-api/master/COPYING' -OutFile (Join-Path $licenseDir 'LICENSE-VOSK.txt')
     Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/microsoft/playwright/main/LICENSE' -OutFile (Join-Path $licenseDir 'LICENSE-PLAYWRIGHT.txt')
     $gpl = Get-ChildItem -Path $temp -Recurse -Filter 'COPYING*' -ErrorAction SilentlyContinue | Select-Object -First 1
     if ($gpl) {
