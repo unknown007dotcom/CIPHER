@@ -189,12 +189,21 @@ harnesses passed in CI; see `docs/TEST_REPORT_STAGE9.md`. Remaining stages: 10 (
 
 ### Stage 10 — Real offline WiX MSI
 
-Planned deliverable: `CIPHER.msi` built with WiX Toolset.
+Deliverable: `CIPHER.msi` built with WiX Toolset (WixToolset.Sdk 5.0.2).
 
-The MSI must contain the self-contained application, native libraries, Vosk model, eSpeak NG,
-configuration, licenses, shortcuts, and uninstall support. It must not download dependencies. A
-`CIPHER-Setup.exe` bootstrapper is created only if a genuine machine-level prerequisite cannot be
-included in the MSI.
+- [x] `src/CIPHER.Installer` WiX v5 project: per-user x64 package harvesting the published
+  app plus `models\`, `tools\espeak-ng\`, `playwright\browsers\`, and `licenses\`; Start
+  menu shortcut; MajorUpgrade; built by `package.bat` (present in the solution without a
+  default build configuration, so plain solution builds skip it).
+- [x] Dependency staging (`scripts/stage-dependencies.ps1`) with a SHA-256 manifest that
+  `install-dependencies.bat` enforces before packaging; nothing downloads at install time.
+- [x] App path-resolution hardening for the installed layout (bundled Chromium via
+  `PLAYWRIGHT_BROWSERS_PATH`, eSpeak exe/data probes, Vosk folder aliases), x64/win-x64
+  architecture lock, tray-first close with awaited shutdown, single-instance per user.
+- [x] CI builds the MSI, verifies its payload by administrative extraction, and runs a
+  real install → verify → uninstall cycle. The remaining manual gate (clean offline
+  Windows 10/11 VMs, launching the installed app) is listed below and in
+  `docs/TEST_REPORT_STAGE10.md`. No bootstrapper: every prerequisite is inside the MSI.
 
 Exit gate: on a clean offline Windows 10 and Windows 11 x64 VM:
 
@@ -204,6 +213,11 @@ Exit gate: on a clean offline Windows 10 and Windows 11 x64 VM:
 4. Run the Notepad milestone.
 5. Uninstall.
 6. Verify files, shortcuts, and settings behavior match the documented policy.
+
+**Stage 10 status:** the MSI is built and proven in CI (payload extraction +
+install/verify/uninstall on the runner; see `docs/TEST_REPORT_STAGE10.md`). Items 1–6
+above remain as the manual clean-VM release gate. Remaining stage: 11 (performance and
+release).
 
 ### Stage 11 — Performance and release
 

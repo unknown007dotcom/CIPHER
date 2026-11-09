@@ -32,15 +32,35 @@ for %%D in (vosk espeak-ng playwright licenses) do (
   )
 )
 
+if not exist "%ROOT%dependencies\vosk\vosk-model-small-en-us-0.15\conf\model.conf" (
+  call :Log "[ERROR] Missing dependencies\vosk\vosk-model-small-en-us-0.15\conf\model.conf"
+  set "MISSING=1"
+)
+
+if not exist "%ROOT%dependencies\espeak-ng\espeak-ng.exe" (
+  call :Log "[ERROR] Missing dependencies\espeak-ng\espeak-ng.exe"
+  set "MISSING=1"
+)
+
 if "%MISSING%"=="1" (
   call :Log "[FAILED] The offline dependency bundle is incomplete. CIPHER.msi must not be produced yet."
-  call :Log "[INFO] See dependencies\README.md and %LOG%"
+  call :Log "[INFO] Stage it with: pwsh scripts\stage-dependencies.ps1  (see dependencies\README.md)"
   exit /b 2
 )
 
-call :Log "[INFO] Directory presence check passed."
-call :Log "[WARN] SHA-256 manifest verification is enforced during the installer stage before packaging."
-call :Log "[PASSED] Bundled dependency directories are present. See %LOG%"
+if not exist "%ROOT%scripts\verify-dependencies.ps1" (
+  call :Log "[ERROR] Missing scripts\verify-dependencies.ps1"
+  exit /b 2
+)
+
+call :Log "Verifying SHA-256 manifest..."
+powershell -NoProfile -ExecutionPolicy Bypass -File "%ROOT%scripts\verify-dependencies.ps1" -Root "%ROOT%dependencies" >> "%LOG%" 2>&1
+if errorlevel 1 (
+  call :Log "[FAILED] SHA-256 manifest verification failed. See %LOG%"
+  exit /b 2
+)
+
+call :Log "[PASSED] Bundled dependencies are present and hash-verified. See %LOG%"
 exit /b 0
 
 :Log

@@ -18,6 +18,8 @@ public partial class MainWindow : Window
     private NotifyIcon? _trayIcon;
     private HwndSource? _hwndSource;
     private bool _hotkeyRegistered;
+    private bool _isExitRequested;
+    private bool _isShuttingDown;
 
     public MainWindow()
     {
@@ -65,7 +67,11 @@ public partial class MainWindow : Window
     {
         var showItem = new ToolStripMenuItem("Show CIPHER", null, (_, _) => ShowCipher());
         var hideItem = new ToolStripMenuItem("Hide CIPHER", null, (_, _) => Hide());
-        var exitItem = new ToolStripMenuItem("Exit CIPHER", null, (_, _) => Close());
+        var exitItem = new ToolStripMenuItem("Exit CIPHER", null, (_, _) =>
+        {
+            _isExitRequested = true;
+            Close();
+        });
 
         _trayIcon = new NotifyIcon
         {
@@ -188,10 +194,30 @@ public partial class MainWindow : Window
         Close();
     }
 
-    private void MainWindow_Closing(object? sender, CancelEventArgs e)
+    private async void MainWindow_Closing(object? sender, CancelEventArgs e)
     {
+        // Alt+F4 and the close button hide CIPHER to the tray; only the tray's
+        // "Exit CIPHER" item performs a real shutdown.
+        if (!_isExitRequested)
+        {
+            e.Cancel = true;
+            Hide();
+            return;
+        }
+
+        if (_isShuttingDown)
+        {
+            e.Cancel = true;
+            return;
+        }
+
+        // Cancel this close event, clean up asynchronously (browser session,
+        // memory store), and only then really exit — a fire-and-forget shutdown
+        // could kill the process mid-dispose.
+        e.Cancel = true;
+        _isShuttingDown = true;
+
         _viewModel.RequestCancellation();
-        _ = _viewModel.ShutdownAsync();
         _viewModel.PropertyChanged -= ViewModel_PropertyChanged;
 
         if (_hotkeyRegistered)
@@ -209,5 +235,16 @@ public partial class MainWindow : Window
             _trayIcon.Dispose();
             _trayIcon = null;
         }
+
+        try
+        {
+            await _viewModel.ShutdownAsync();
+        }
+        catch (Exception ex)
+        {
+            App.LogError("MainWindow.ShutdownAsync", ex);
+        }
+
+        System.Windows.Application.Current.Shutdown();
     }
 }

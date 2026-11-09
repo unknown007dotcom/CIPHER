@@ -21,7 +21,8 @@ public partial class App : System.Windows.Application
     {
         IsSafeMode = e.Args.Any(arg => string.Equals(arg, "--safe-mode", StringComparison.OrdinalIgnoreCase));
 
-        _singleInstanceMutex = new Mutex(initiallyOwned: true, "CIPHER.App.SingleInstance", out var createdNew);
+        var mutexName = $"Local\\CIPHER.App.SingleInstance.{Environment.UserName}";
+        _singleInstanceMutex = new Mutex(initiallyOwned: true, mutexName, out var createdNew);
         if (!createdNew)
         {
             _singleInstanceMutex.Dispose();
@@ -45,7 +46,11 @@ public partial class App : System.Windows.Application
 
         DispatcherUnhandledException += (_, args) =>
         {
+            // Log and keep the shell alive: an unhandled UI exception must not kill
+            // the tray app mid-task. AppDomain.UnhandledException above remains the
+            // last-resort path for failures that cannot be contained.
             LogError("DispatcherUnhandledException", args.Exception);
+            args.Handled = true;
         };
 
         base.OnStartup(e);

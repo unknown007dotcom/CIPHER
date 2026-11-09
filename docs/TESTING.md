@@ -137,6 +137,25 @@ denied/blocked actions mutated nothing. Deterministic gate/redaction/audit cases
 `src/CIPHER.Tests/SecurityHardeningTests.cs`. See `docs/TEST_REPORT_STAGE9.md` and
 `docs/THREAT_MODEL.md`.
 
+### Stage 10 offline MSI
+
+CI stages the dependency bundle (cached; `scripts/stage-dependencies.ps1`), builds
+`CIPHER.msi` through `package.bat`, then proves it three ways: the SHA-256 manifest
+verifies before packaging, an administrative extraction (`msiexec /a`) contains the
+app, Vosk model, eSpeak NG, Chromium, and license payloads, and a real
+install → shortcut check → uninstall cycle leaves no program folder behind.
+Manual clean-VM validation (offline Windows 10/11, launch the installed app, run the
+Notepad milestone from the installed copy) remains a release gate — see
+`docs/TEST_REPORT_STAGE10.md`.
+
+Locally:
+
+```powershell
+dotnet restore CIPHER.sln
+pwsh scripts\stage-dependencies.ps1
+package.bat Release   # artifacts\CIPHER.msi
+```
+
 ### Stage 3 Notepad milestone
 
 This milestone is automated by `src/CIPHER.MilestoneTest` and runs in GitHub-hosted Windows

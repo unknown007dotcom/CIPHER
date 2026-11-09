@@ -25,15 +25,24 @@ public static class VoskModelLocator
         }
 
         var candidates = new List<string>();
-        var applicationModels = Path.Combine(AppContext.BaseDirectory, "models");
-        candidates.Add(Path.Combine(applicationModels, SmallEnglishModelName));
-        AddSubdirectories(candidates, applicationModels);
+
+        // The installer stages the model under "models" (Stage 10 layout); the raw
+        // dependency bundle calls the folder "vosk". Probe both so either layout —
+        // and either model folder name — resolves without configuration.
+        foreach (var folderName in new[] { "models", "vosk" })
+        {
+            var applicationModels = Path.Combine(AppContext.BaseDirectory, folderName);
+            candidates.Add(Path.Combine(applicationModels, SmallEnglishModelName));
+            candidates.Add(Path.Combine(applicationModels, "model-en-us-small"));
+            AddSubdirectories(candidates, applicationModels);
+        }
 
         var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         if (!string.IsNullOrWhiteSpace(localAppData))
         {
             var userModels = Path.Combine(localAppData, "CIPHER", "models");
             candidates.Add(Path.Combine(userModels, SmallEnglishModelName));
+            candidates.Add(Path.Combine(userModels, "model-en-us-small"));
             AddSubdirectories(candidates, userModels);
         }
 
