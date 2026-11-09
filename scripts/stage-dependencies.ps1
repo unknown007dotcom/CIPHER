@@ -25,19 +25,19 @@ $ErrorActionPreference = 'Stop'
 
 function Invoke-WithRetry([scriptblock]$Action, [string]$Name) {
     $lastError = $null
-    foreach ($attempt in 1..3) {
+    foreach ($attempt in 1..5) {
         try {
             return & $Action
         }
         catch {
             $lastError = $_
             Write-Host "  $Name attempt $attempt failed: $($_.Exception.Message)"
-            if ($attempt -lt 3) {
-                Start-Sleep -Seconds (10 * $attempt)
+            if ($attempt -lt 5) {
+                Start-Sleep -Seconds (15 * $attempt)
             }
         }
     }
-    throw "$Name failed after 3 attempts: $($lastError.Exception.Message)"
+    throw "$Name failed after 5 attempts: $($lastError.Exception.Message)"
 }
 
 $deps = Join-Path $RepoRoot 'dependencies'

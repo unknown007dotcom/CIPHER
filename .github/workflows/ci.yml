@@ -230,6 +230,17 @@ jobs:
           ./src/CIPHER.MilestoneTest/bin/Release/net10.0-windows/CIPHER.MilestoneTest.exe stage9
           if ($LASTEXITCODE -ne 0) { throw "Stage 9 security gate harness failed with exit code $LASTEXITCODE." }
 
+      - name: Cache staged dependencies (Stage 10)
+        uses: actions/cache@v4
+        with:
+          path: |
+            dependencies/vosk
+            dependencies/espeak-ng
+            dependencies/playwright
+            dependencies/licenses
+            dependencies/manifest.sha256
+          key: cipher-deps-${{ hashFiles('scripts/stage-dependencies.ps1') }}
+
       - name: Stage offline dependencies (Stage 10)
         timeout-minutes: 10
         shell: pwsh
