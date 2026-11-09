@@ -17,6 +17,24 @@ param(
 $ErrorActionPreference = 'Stop'
 $failures = [System.Collections.Generic.List[string]]::new()
 
+# Get-FileHash is unavailable in some Windows PowerShell 5.1 contexts, and this
+# script is invoked from .bat via powershell.exe — hash through .NET directly.
+function Get-Sha256Hex([string]$Path) {
+    $stream = [IO.File]::OpenRead($Path)
+    try {
+        $sha = [Security.Cryptography.SHA256]::Create()
+        try {
+            return ([BitConverter]::ToString($sha.ComputeHash($stream))).Replace('-', '').ToLowerInvariant()
+        }
+        finally {
+            $sha.Dispose()
+        }
+    }
+    finally {
+        $stream.Dispose()
+    }
+}
+
 function Require-File([string]$RelativePath) {
     if (-not (Test-Path (Join-Path $Root $RelativePath) -PathType Leaf)) {
         $failures.Add("Missing payload file: $RelativePath")
@@ -63,7 +81,7 @@ else {
             continue
         }
 
-        $actual = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant()
+        $actual = Get-Sha256Hex $file
         if ($actual -ne $entry.Value) {
             $failures.Add("SHA-256 mismatch: $($entry.Key)")
         }
