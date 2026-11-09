@@ -8,5 +8,10 @@
     <PublishDir>..\..\artifacts\publish\win-x64</PublishDir>
     <DepsDir>..\..\dependencies</DepsDir>
     <DefineConstants>PublishDir=$(PublishDir);DepsDir=$(DepsDir)</DefineConstants>
+    <!-- Harvested file components (WiX <Files>) do not emit RemoveFile rows for
+         their generated directories, which ICE64 flags for per-user packages.
+         Directory cleanup on uninstall is verified functionally in CI
+         (install → verify → uninstall), so this ICE is suppressed deliberately. -->
+    <SuppressIces>ICE64</SuppressIces>
   </PropertyGroup>
 </Project>
