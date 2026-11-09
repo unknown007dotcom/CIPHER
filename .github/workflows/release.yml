@@ -1,0 +1,101 @@
+name: CIPHER Release
+
+# Builds CIPHER.msi from a version tag and publishes it as a GitHub Release.
+# Trigger: push a tag like v1.0.0-rc.1 (git tag v1.0.0-rc.1 && git push origin v1.0.0-rc.1).
+# Everything up to packaging is identical to the gating CI pipeline; the release
+# is marked as a prerelease until the Stage 11 / clean-VM gates are complete.
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build MSI and publish release (Windows)
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore solution
+        run: dotnet restore CIPHER.sln
+
+      - name: Build solution
+        run: dotnet build CIPHER.sln --configuration Release --no-restore
+
+      - name: Run tests
+        run: dotnet test CIPHER.sln --configuration Release --no-build
+
+      - name: Cache staged dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            dependencies/vosk
+            dependencies/espeak-ng
+            dependencies/playwright
+            dependencies/licenses
+            dependencies/manifest.sha256
+          key: cipher-deps-${{ hashFiles('scripts/stage-dependencies.ps1') }}
+
+      - name: Stage offline dependencies
+        timeout-minutes: 10
+        shell: pwsh
+        run: ./scripts/stage-dependencies.ps1
+
+      - name: Build CIPHER.msi via package.bat
+        timeout-minutes: 20
+        shell: pwsh
+        run: |
+          cmd /c "package.bat Release"
+          if ($LASTEXITCODE -ne 0) { throw "package.bat failed with exit code $LASTEXITCODE." }
+
+      - name: Verify MSI payload by administrative extraction
+        timeout-minutes: 10
+        shell: pwsh
+        run: |
+          $msiPath = Join-Path $PWD "artifacts\CIPHER.msi"
+          $extract = Join-Path $env:RUNNER_TEMP "cipher-msi-extract"
+          $proc = Start-Process msiexec.exe -ArgumentList "/a `"$msiPath`" /qn TARGETDIR=`"$extract`"" -Wait -PassThru
+          if ($proc.ExitCode -ne 0) { throw "MSI administrative extraction failed with exit code $($proc.ExitCode)." }
+          $root = Get-ChildItem -Path $extract -Recurse -Filter "CIPHER.exe" | Select-Object -First 1
+          if (-not $root) { throw "CIPHER.exe not found in the extracted MSI." }
+          $installDir = $root.DirectoryName
+          foreach ($relative in @(
+            "models\vosk-model-small-en-us-0.15\conf\model.conf",
+            "tools\espeak-ng\espeak-ng.exe",
+            "licenses\LICENSE-VOSK.txt",
+            "licenses\LICENSE-ESPEAK-NG.txt",
+            "licenses\LICENSE-PLAYWRIGHT.txt")) {
+            if (-not (Test-Path (Join-Path $installDir $relative))) { throw "Missing from MSI payload: $relative" }
+          }
+          $chrome = Get-ChildItem -Path (Join-Path $installDir "playwright\browsers") -Recurse -Filter "chrome.exe" | Select-Object -First 1
+          if (-not $chrome) { throw "Bundled Chromium (chrome.exe) not found in the extracted MSI." }
+          Write-Host "MSI payload verified under $installDir"
+
+      - name: Create GitHub release with CIPHER.msi
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $msiPath = Join-Path $PWD "artifacts\CIPHER.msi"
+          $size = (Get-Item $msiPath).Length
+          $hash = (Get-FileHash $msiPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  CIPHER.msi" | Set-Content -Path (Join-Path $PWD "SHA256SUMS.txt") -Encoding ascii
+          $notes = @"
+          Offline per-user installer for CIPHER, the offline-first Windows desktop assistant.
+
+          - **Install:** run `CIPHER.msi` (no admin prompt). Installs under `%LocalAppData%\CIPHERProgram` with a Start menu shortcut.
+          - **Bundled:** self-contained app, Vosk offline speech model, eSpeak NG, Chromium for browser automation, license notices. Nothing is downloaded at install time.
+          - **Size:** $size bytes. **SHA-256:** see `SHA256SUMS.txt`.
+          - **Status:** prerelease. The MSI is CI-built and CI-verified (payload extraction + install/uninstall on the runner); clean offline Windows 10/11 VM validation and Stage 11 performance measurements are still pending. See `docs/TEST_REPORT_STAGE10.md`.
+          "@
+          gh release create "${{ github.ref_name }}" "$msiPath" (Join-Path $PWD "SHA256SUMS.txt") --title "CIPHER ${{ github.ref_name }}" --notes $notes --prerelease

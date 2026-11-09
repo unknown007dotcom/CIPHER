@@ -329,6 +329,13 @@ jobs:
           if ($uninstall.ExitCode -ne 0) { throw "MSI uninstall failed with exit code $($uninstall.ExitCode)." }
           if (Test-Path (Join-Path $env:LOCALAPPDATA "CIPHERProgram")) { throw "CIPHERProgram folder remained after uninstall." }
 
+      - name: Upload CIPHER.msi artifact (Stage 10)
+        uses: actions/upload-artifact@v4
+        with:
+          name: CIPHER-msi
+          path: artifacts/CIPHER.msi
+          if-no-files-found: error
+
       - name: Publish Windows x64 app (framework-dependent validation build)
         run: >-
           dotnet publish src/CIPHER.App/CIPHER.App.csproj
