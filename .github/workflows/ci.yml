@@ -240,10 +240,19 @@ jobs:
 
       - name: Build CIPHER.msi via package.bat (Stage 10)
         timeout-minutes: 20
-        shell: cmd
+        shell: pwsh
         run: |
-          call package.bat Release
-          if errorlevel 1 exit /b 1
+          cmd /c "package.bat Release"
+          if ($LASTEXITCODE -ne 0) {
+            foreach ($log in @("logs/package-Release.log", "logs/install-dependencies.log")) {
+              if (Test-Path $log) {
+                $tail = (Get-Content $log -Tail 20) -join "`n"
+                $escaped = $tail.Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+                Write-Host "::error title=package.bat log::$escaped"
+              }
+            }
+            throw "package.bat failed with exit code $LASTEXITCODE."
+          }
 
       - name: Verify MSI payload by administrative extraction (Stage 10)
         timeout-minutes: 10
