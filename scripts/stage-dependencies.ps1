@@ -22,6 +22,24 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+
+function Invoke-WithRetry([scriptblock]$Action, [string]$Name) {
+    $lastError = $null
+    foreach ($attempt in 1..3) {
+        try {
+            return & $Action
+        }
+        catch {
+            $lastError = $_
+            Write-Host "  $Name attempt $attempt failed: $($_.Exception.Message)"
+            if ($attempt -lt 3) {
+                Start-Sleep -Seconds (10 * $attempt)
+            }
+        }
+    }
+    throw "$Name failed after 3 attempts: $($lastError.Exception.Message)"
+}
+
 $deps = Join-Path $RepoRoot 'dependencies'
 $temp = Join-Path ([IO.Path]::GetTempPath()) ('cipher-stage-' + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $temp -Force | Out-Null
@@ -32,7 +50,7 @@ try {
     $modelDir = Join-Path $deps 'vosk/vosk-model-small-en-us-0.15'
     if (-not (Test-Path (Join-Path $modelDir 'conf/model.conf'))) {
         $zip = Join-Path $temp 'vosk-model.zip'
-        Invoke-WebRequest -Uri 'https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip' -OutFile $zip
+        Invoke-WithRetry { Invoke-WebRequest -Uri 'https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip' -OutFile $zip } 'Vosk model download'
         $extract = Join-Path $temp 'vosk-model'
         Expand-Archive -LiteralPath $zip -DestinationPath $extract -Force
         New-Item -ItemType Directory -Path (Split-Path $modelDir -Parent) -Force | Out-Null
@@ -75,11 +93,11 @@ try {
     $espeakDir = Join-Path $deps 'espeak-ng'
     if (-not (Test-Path (Join-Path $espeakDir 'espeak-ng.exe'))) {
         $headers = @{ 'User-Agent' = 'CIPHER-CI' }
-        $release = Invoke-RestMethod -Uri 'https://api.github.com/repos/espeak-ng/espeak-ng/releases/latest' -Headers $headers
+        $release = Invoke-WithRetry { Invoke-RestMethod -Uri 'https://api.github.com/repos/espeak-ng/espeak-ng/releases/latest' -Headers $headers } 'eSpeak release lookup'
         $asset = $release.assets | Where-Object { $_.name -like '*.msi' } | Select-Object -First 1
         if (-not $asset) { throw 'No eSpeak NG MSI asset found in the latest release.' }
         $msi = Join-Path $temp 'espeak-ng.msi'
-        Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $msi -Headers $headers
+        Invoke-WithRetry { Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $msi -Headers $headers } 'eSpeak MSI download'
         $extract = Join-Path $temp 'espeak-extract'
         $proc = Start-Process msiexec.exe -ArgumentList "/a `"$msi`" /qn TARGETDIR=`"$extract`"" -Wait -PassThru
         if ($proc.ExitCode -ne 0) { throw "msiexec administrative install failed with exit code $($proc.ExitCode)." }
@@ -120,14 +138,14 @@ try {
     # --- Licenses ----------------------------------------------------------------------
     $licenseDir = Join-Path $deps 'licenses'
     New-Item -ItemType Directory -Path $licenseDir -Force | Out-Null
-    Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/alphacep/vosk-api/master/COPYING' -OutFile (Join-Path $licenseDir 'LICENSE-VOSK.txt')
-    Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/microsoft/playwright/main/LICENSE' -OutFile (Join-Path $licenseDir 'LICENSE-PLAYWRIGHT.txt')
+    Invoke-WithRetry { Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/alphacep/vosk-api/master/COPYING' -OutFile (Join-Path $licenseDir 'LICENSE-VOSK.txt') } 'Vosk license download'
+    Invoke-WithRetry { Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/microsoft/playwright/main/LICENSE' -OutFile (Join-Path $licenseDir 'LICENSE-PLAYWRIGHT.txt') } 'Playwright license download'
     $gpl = Get-ChildItem -Path $temp -Recurse -Filter 'COPYING*' -ErrorAction SilentlyContinue | Select-Object -First 1
     if ($gpl) {
         Copy-Item $gpl.FullName (Join-Path $licenseDir 'LICENSE-ESPEAK-NG.txt') -Force
     }
     else {
-        Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/espeak-ng/espeak-ng/master/COPYING' -OutFile (Join-Path $licenseDir 'LICENSE-ESPEAK-NG.txt')
+        Invoke-WithRetry { Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/espeak-ng/espeak-ng/master/COPYING' -OutFile (Join-Path $licenseDir 'LICENSE-ESPEAK-NG.txt') } 'eSpeak license download'
     }
     Write-Host '[OK] License notices'
 
