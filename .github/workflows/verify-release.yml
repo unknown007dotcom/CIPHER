@@ -1,0 +1,115 @@
+name: CIPHER Release Verification
+
+# End-to-end verification of a PUBLISHED release: downloads the actual
+# CIPHER.msi asset from GitHub Releases (not a fresh build), verifies its
+# SHA-256, installs it, launches the installed app through the Stage 4
+# named-element harness, and uninstalls cleanly.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to verify"
+        required: true
+        default: "v1.0.0-rc.1"
+  push:
+    branches:
+      - "arena/12331525-cipher"
+
+permissions:
+  contents: read
+
+jobs:
+  verify-release:
+    name: Verify published MSI end-to-end (Windows)
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out source (for the Stage 4 harness)
+        uses: actions/checkout@v4
+
+      - name: Install .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Build Stage 4 harness only
+        shell: pwsh
+        run: |
+          dotnet build src/CIPHER.MilestoneTest/CIPHER.MilestoneTest.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { throw "Harness build failed with exit code $LASTEXITCODE." }
+
+      - name: Download published release assets
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "${{ inputs.tag }}"
+          if ([string]::IsNullOrWhiteSpace($tag)) { $tag = "${{ github.event.release.tag_name }}" }
+          if ([string]::IsNullOrWhiteSpace($tag)) { $tag = "v1.0.0-rc.1" }
+          Write-Host "Verifying release tag: $tag"
+          "CIPHER_RELEASE_TAG=$tag" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          gh release download $tag --pattern "CIPHER.msi" --pattern "SHA256SUMS.txt" --dir release-assets
+          if ($LASTEXITCODE -ne 0) { throw "Release download failed with exit code $LASTEXITCODE." }
+
+      - name: Verify MSI SHA-256 against SHA256SUMS.txt
+        shell: pwsh
+        run: |
+          $msi = Join-Path $PWD "release-assets\CIPHER.msi"
+          $line = (Get-Content (Join-Path $PWD "release-assets\SHA256SUMS.txt") | Select-Object -First 1)
+          $expected = ($line -split '\s+')[0].ToLowerInvariant()
+          $actual = (Get-FileHash $msi -Algorithm SHA256).Hash.ToLowerInvariant()
+          Write-Host "Expected: $expected"
+          Write-Host "Actual:   $actual"
+          if ($actual -ne $expected) {
+            Write-Host "::error title=Release verification::SHA-256 mismatch for downloaded CIPHER.msi"
+            throw "SHA-256 mismatch for downloaded CIPHER.msi."
+          }
+          Write-Host "::notice title=Release verification::SHA-256 of published CIPHER.msi matches SHA256SUMS.txt ($((Get-Item $msi).Length) bytes)."
+
+      - name: Install published MSI and verify installed layout
+        timeout-minutes: 10
+        shell: pwsh
+        run: |
+          $msi = Join-Path $PWD "release-assets\CIPHER.msi"
+          $install = Start-Process msiexec.exe -ArgumentList "/i `"$msi`" /qn /norestart" -Wait -PassThru
+          if ($install.ExitCode -ne 0) { throw "MSI install failed with exit code $($install.ExitCode)." }
+          $installDir = Join-Path $env:LOCALAPPDATA "CIPHERProgram"
+          foreach ($relative in @(
+            "CIPHER.exe",
+            "models\vosk-model-small-en-us-0.15\conf\model.conf",
+            "tools\espeak-ng\espeak-ng.exe",
+            "licenses\LICENSE-VOSK.txt")) {
+            if (-not (Test-Path (Join-Path $installDir $relative))) { throw "Missing after install: $relative" }
+          }
+          $chrome = Get-ChildItem -Path (Join-Path $installDir "playwright\browsers") -Recurse -Filter "chrome.exe" | Select-Object -First 1
+          if (-not $chrome) { throw "Bundled Chromium not found after install." }
+          $shortcut = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\CIPHER.lnk"
+          if (-not (Test-Path $shortcut)) { throw "Start menu shortcut missing after install." }
+          Write-Host "::notice title=Release verification::Published MSI installed; app, model, eSpeak, Chromium, licenses, shortcut verified."
+
+      - name: Launch installed CIPHER and drive its UI (Stage 4 harness)
+        timeout-minutes: 5
+        shell: pwsh
+        run: |
+          $installedExe = Join-Path $env:LOCALAPPDATA "CIPHERProgram\CIPHER.exe"
+          ./src/CIPHER.MilestoneTest/bin/Release/net10.0-windows/CIPHER.MilestoneTest.exe stage4 --app "$installedExe"
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "::error title=Release verification::Installed-app Stage 4 harness failed with exit code $LASTEXITCODE"
+            throw "Installed-app harness failed with exit code $LASTEXITCODE."
+          }
+          Write-Host "::notice title=Release verification::Installed CIPHER.exe launched and passed named-element UI targeting."
+
+      - name: Uninstall published MSI and verify removal
+        timeout-minutes: 10
+        shell: pwsh
+        run: |
+          $msi = Join-Path $PWD "release-assets\CIPHER.msi"
+          $uninstall = Start-Process msiexec.exe -ArgumentList "/x `"$msi`" /qn /norestart" -Wait -PassThru
+          if ($uninstall.ExitCode -ne 0) { throw "MSI uninstall failed with exit code $($uninstall.ExitCode)." }
+          $installDir = Join-Path $env:LOCALAPPDATA "CIPHERProgram"
+          if (Test-Path $installDir) { throw "CIPHERProgram folder remained after uninstall." }
+          $shortcut = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\CIPHER.lnk"
+          if (Test-Path $shortcut) { throw "Start menu shortcut remained after uninstall." }
+          Write-Host "::notice title=Release verification::RELEASE-E2E-PASS install, installed-app UI run, and clean uninstall all verified for ${{ env.CIPHER_RELEASE_TAG }}."
