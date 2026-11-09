@@ -3,6 +3,9 @@
     <OutputName>CIPHER</OutputName>
     <OutputType>Package</OutputType>
     <InstallerPlatform>x64</InstallerPlatform>
+    <!-- Emit the MSI straight into artifacts\ so packaging needs no fragile
+         search-and-copy step afterwards. -->
+    <OutputPath>..\..\artifacts\</OutputPath>
     <!-- package.bat publishes the app here and stages offline payloads under
          dependencies\ before building this project. -->
     <PublishDir>..\..\artifacts\publish\win-x64</PublishDir>
