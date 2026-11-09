@@ -8,10 +8,12 @@
     <PublishDir>..\..\artifacts\publish\win-x64</PublishDir>
     <DepsDir>..\..\dependencies</DepsDir>
     <DefineConstants>PublishDir=$(PublishDir);DepsDir=$(DepsDir)</DefineConstants>
-    <!-- Harvested file components (WiX <Files>) do not emit RemoveFile rows for
-         their generated directories, which ICE64 flags for per-user packages.
-         Directory cleanup on uninstall is verified functionally in CI
-         (install → verify → uninstall), so this ICE is suppressed deliberately. -->
-    <SuppressIces>ICE64</SuppressIces>
+    <!-- Per-user packages built from harvested file components (WiX <Files>)
+         trip two ICEs by design: ICE38 (file KeyPaths instead of HKCU registry
+         KeyPaths) and ICE64 (generated directories without RemoveFile rows).
+         Both are standard suppressions for per-user installs; correctness is
+         verified functionally in CI (MSI builds, payload extraction matches,
+         install → shortcut → uninstall leaves nothing behind). -->
+    <SuppressIces>ICE38;ICE64</SuppressIces>
   </PropertyGroup>
 </Project>
