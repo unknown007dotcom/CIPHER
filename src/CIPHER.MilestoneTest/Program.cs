@@ -576,7 +576,7 @@ internal static class Program
             var payloadFiles = new[]
             {
                 BrainModelLocator.EncoderFileName,
-                BrainModelLocator.DecoderFileName,
+                BrainModelLocator.PlainDecoderFileName,
                 BrainModelLocator.TokenizerFileName
             };
             var missing = payloadFiles

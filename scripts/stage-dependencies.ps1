@@ -138,15 +138,15 @@ try {
 
     # --- Local brain: Flan-T5-small (80M params, int8 ONNX, ~99 MB total) -------------
     # The Stage 11 on-device brain. Xenova's transformers.js export of Google's
-    # Flan-T5-small (Apache-2.0): merged decoder with KV cache + SentencePiece
+    # Flan-T5-small (Apache-2.0): encoder + plain decoder graphs + SentencePiece
     # tokenizer.json, downloaded once here and hash-pinned in the manifest like
     # every other payload. Install/runtime never download anything.
     $brainDir = Join-Path $deps 'brain'
-    if (-not (Test-Path (Join-Path $brainDir 'decoder_model_merged_quantized.onnx'))) {
+    if (-not (Test-Path (Join-Path $brainDir 'decoder_model_quantized.onnx'))) {
         New-Item -ItemType Directory -Path $brainDir -Force | Out-Null
         $brainBase = 'https://huggingface.co/Xenova/flan-t5-small/resolve/main'
         Invoke-WithRetry { Invoke-WebRequest -Uri "$brainBase/onnx/encoder_model_quantized.onnx" -OutFile (Join-Path $brainDir 'encoder_model_quantized.onnx') } 'Brain encoder download'
-        Invoke-WithRetry { Invoke-WebRequest -Uri "$brainBase/onnx/decoder_model_merged_quantized.onnx" -OutFile (Join-Path $brainDir 'decoder_model_merged_quantized.onnx') } 'Brain decoder download'
+        Invoke-WithRetry { Invoke-WebRequest -Uri "$brainBase/onnx/decoder_model_quantized.onnx" -OutFile (Join-Path $brainDir 'decoder_model_quantized.onnx') } 'Brain decoder download'
         Invoke-WithRetry { Invoke-WebRequest -Uri "$brainBase/tokenizer.json" -OutFile (Join-Path $brainDir 'tokenizer.json') } 'Brain tokenizer download'
     }
     Write-Host '[OK] Local brain (Flan-T5-small)'

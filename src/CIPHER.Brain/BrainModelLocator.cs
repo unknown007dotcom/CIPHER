@@ -14,7 +14,13 @@ public static class BrainModelLocator
     public const string ModelDisplayName = "Flan-T5-small (80M parameters, int8 ONNX)";
 
     public const string EncoderFileName = "encoder_model_quantized.onnx";
+
+    /// <summary>Plain decoder graph (no KV cache): the primary, simplest decode path.</summary>
+    public const string PlainDecoderFileName = "decoder_model_quantized.onnx";
+
+    /// <summary>Merged decoder graph with KV cache: used when the plain one is absent.</summary>
     public const string DecoderFileName = "decoder_model_merged_quantized.onnx";
+
     public const string TokenizerFileName = "tokenizer.json";
 
     public static bool IsBrainDirectory(string? path)
@@ -22,7 +28,8 @@ public static class BrainModelLocator
         return !string.IsNullOrWhiteSpace(path) &&
                Directory.Exists(path) &&
                File.Exists(Path.Combine(path, EncoderFileName)) &&
-               File.Exists(Path.Combine(path, DecoderFileName)) &&
+               (File.Exists(Path.Combine(path, PlainDecoderFileName)) ||
+                File.Exists(Path.Combine(path, DecoderFileName))) &&
                File.Exists(Path.Combine(path, TokenizerFileName));
     }
 

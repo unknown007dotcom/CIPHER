@@ -8,8 +8,9 @@ namespace CIPHER.Brain;
 /// int8-quantized ONNX, run by ONNX Runtime on the CPU. Nothing is sent off the PC.
 ///
 /// The graph pair is the transformers.js layout: an encoder
-/// (<c>encoder_model_quantized.onnx</c>) and a merged decoder with KV cache
-/// (<c>decoder_model_merged_quantized.onnx</c>). Input/output names, layer count, and
+/// (<c>encoder_model_quantized.onnx</c>) and a decoder
+/// (<c>decoder_model_quantized.onnx</c>, full-prefix re-decode each step; the merged
+/// KV-cache variant is accepted as a fallback). Input/output names, layer count, and
 /// cache shapes are discovered from session metadata at load time rather than assumed,
 /// so a re-export of the same model keeps working. Decoding is greedy, which makes
 /// the brain deterministic: the same prompt always produces the same words.
@@ -51,8 +52,8 @@ public sealed class FlanT5Brain : ILocalBrain, IDisposable
         {
             throw new InvalidOperationException(
                 $"The local brain model was not found in '{_modelDirectory}'. " +
-                $"Expected {BrainModelLocator.EncoderFileName}, {BrainModelLocator.DecoderFileName}, " +
-                $"and {BrainModelLocator.TokenizerFileName}.");
+                $"Expected {BrainModelLocator.EncoderFileName}, {BrainModelLocator.PlainDecoderFileName} " +
+                $"(or {BrainModelLocator.DecoderFileName}), and {BrainModelLocator.TokenizerFileName}.");
         }
 
         if (maxNewTokens <= 0)
@@ -110,8 +111,16 @@ public sealed class FlanT5Brain : ILocalBrain, IDisposable
 
             _encoder = new InferenceSession(
                 Path.Combine(_modelDirectory, BrainModelLocator.EncoderFileName), options);
-            _decoder = new InferenceSession(
-                Path.Combine(_modelDirectory, BrainModelLocator.DecoderFileName), options);
+
+            // Prefer the plain decoder graph (full-prefix re-decode, no KV cache):
+            // for a 6-layer 80M model the recompute is negligible, and it avoids the
+            // merged graph's use_cache_branch/empty-past semantics entirely. The
+            // merged graph remains as a fallback for bundles that only carry it.
+            var plainDecoderPath = Path.Combine(_modelDirectory, BrainModelLocator.PlainDecoderFileName);
+            var decoderPath = File.Exists(plainDecoderPath)
+                ? plainDecoderPath
+                : Path.Combine(_modelDirectory, BrainModelLocator.DecoderFileName);
+            _decoder = new InferenceSession(decoderPath, options);
             _layout = DecoderLayout.Discover(_encoder, _decoder);
         }
         catch (Exception ex) when (ex is not InvalidOperationException)
@@ -155,32 +164,40 @@ public sealed class FlanT5Brain : ILocalBrain, IDisposable
         }
 
         var generated = new List<int>();
-        long nextToken = tokenizer.PadId; // T5 decoder_start_token_id is the pad token.
+        var prefix = new List<long> { tokenizer.PadId }; // T5 decoder_start_token_id is the pad token.
+        long nextToken = tokenizer.PadId;
         var firstStep = true;
 
         for (var step = 0; step < maxNewTokens; step++)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
+            // Cacheless graphs re-read the whole prefix each step; cached (merged)
+            // graphs consume one new token plus the KV cache.
+            var decoderInputIds = layout.Cacheless
+                ? new DenseTensor<long>(prefix.ToArray(), new[] { 1, prefix.Count })
+                : new DenseTensor<long>(new[] { nextToken }, new[] { 1, 1 });
+
             var inputs = new List<NamedOnnxValue>
             {
-                NamedOnnxValue.CreateFromTensor(
-                    layout.DecoderInputIdsName,
-                    new DenseTensor<long>(new[] { nextToken }, new[] { 1, 1 })),
+                NamedOnnxValue.CreateFromTensor(layout.DecoderInputIdsName, decoderInputIds),
                 NamedOnnxValue.CreateFromTensor(layout.DecoderHiddenStatesName, encoderHidden),
                 NamedOnnxValue.CreateFromTensor(layout.DecoderEncoderMaskName, attentionMask)
             };
 
-            foreach (var pastName in layout.PastInputNames)
+            if (!layout.Cacheless)
             {
-                inputs.Add(NamedOnnxValue.CreateFromTensor(pastName, past[pastName]));
-            }
+                foreach (var pastName in layout.PastInputNames)
+                {
+                    inputs.Add(NamedOnnxValue.CreateFromTensor(pastName, past[pastName]));
+                }
 
-            if (layout.UseCacheBranchName is not null)
-            {
-                inputs.Add(NamedOnnxValue.CreateFromTensor(
-                    layout.UseCacheBranchName,
-                    new DenseTensor<bool>(new[] { !firstStep }, new[] { 1 })));
+                if (layout.UseCacheBranchName is not null)
+                {
+                    inputs.Add(NamedOnnxValue.CreateFromTensor(
+                        layout.UseCacheBranchName,
+                        new DenseTensor<bool>(new[] { !firstStep }, new[] { 1 })));
+                }
             }
 
             using var decoderResults = _decoder!.Run(inputs);
@@ -202,11 +219,14 @@ public sealed class FlanT5Brain : ILocalBrain, IDisposable
             }
 
             // Copy the new cache out before the results (and their tensors) are disposed.
-            foreach (var presentName in layout.PresentOutputNames)
+            if (!layout.Cacheless)
             {
-                var tensor = decoderResults.First(result => result.Name == presentName).AsTensor<float>();
-                past[layout.PresentToPastName(presentName)] =
-                    new DenseTensor<float>(tensor.ToArray(), tensor.Dimensions.ToArray());
+                foreach (var presentName in layout.PresentOutputNames)
+                {
+                    var tensor = decoderResults.First(result => result.Name == presentName).AsTensor<float>();
+                    past[layout.PresentToPastName(presentName)] =
+                        new DenseTensor<float>(tensor.ToArray(), tensor.Dimensions.ToArray());
+                }
             }
 
             firstStep = false;
@@ -216,6 +236,7 @@ public sealed class FlanT5Brain : ILocalBrain, IDisposable
             }
 
             generated.Add(bestToken);
+            prefix.Add(bestToken);
             nextToken = bestToken;
         }
 
@@ -237,7 +258,8 @@ public sealed class FlanT5Brain : ILocalBrain, IDisposable
             IReadOnlyList<string> pastInputNames,
             IReadOnlyList<string> presentOutputNames,
             int numHeads,
-            int headDimension)
+            int headDimension,
+            bool cacheless)
         {
             EncoderInputIdsName = encoderInputIdsName;
             EncoderInputMaskName = encoderInputMaskName;
@@ -251,6 +273,7 @@ public sealed class FlanT5Brain : ILocalBrain, IDisposable
             PresentOutputNames = presentOutputNames;
             NumHeads = numHeads;
             HeadDimension = headDimension;
+            Cacheless = cacheless;
         }
 
         public string EncoderInputIdsName { get; }
@@ -265,6 +288,9 @@ public sealed class FlanT5Brain : ILocalBrain, IDisposable
         public IReadOnlyList<string> PresentOutputNames { get; }
         public int NumHeads { get; }
         public int HeadDimension { get; }
+
+        /// <summary>True for the plain decoder graph (no past_key_values at all).</summary>
+        public bool Cacheless { get; }
 
         public string PresentToPastName(string presentName)
         {
@@ -285,18 +311,19 @@ public sealed class FlanT5Brain : ILocalBrain, IDisposable
                 .Where(name => name.StartsWith("past_key_values.", StringComparison.Ordinal))
                 .OrderBy(name => name, StringComparer.Ordinal)
                 .ToList();
-            if (pastInputNames.Count == 0)
-            {
-                throw new InvalidDataException(
-                    "The decoder graph exposes no past_key_values inputs; a merged decoder with KV cache is required.");
-            }
 
-            var presentOutputNames = decoderOutputs
-                .Where(name => name.StartsWith("present", StringComparison.Ordinal) ||
-                               name.StartsWith("past_key_values.", StringComparison.Ordinal))
-                .OrderBy(name => name, StringComparer.Ordinal)
-                .ToList();
-            if (presentOutputNames.Count != pastInputNames.Count)
+            // No past_key_values inputs at all means the plain decoder graph:
+            // generation re-feeds the whole prefix each step (see GenerateCore).
+            var cacheless = pastInputNames.Count == 0;
+
+            var presentOutputNames = cacheless
+                ? new List<string>()
+                : decoderOutputs
+                    .Where(name => name.StartsWith("present", StringComparison.Ordinal) ||
+                                   name.StartsWith("past_key_values.", StringComparison.Ordinal))
+                    .OrderBy(name => name, StringComparer.Ordinal)
+                    .ToList();
+            if (!cacheless && presentOutputNames.Count != pastInputNames.Count)
             {
                 throw new InvalidDataException(
                     $"The decoder graph has {pastInputNames.Count} past inputs but {presentOutputNames.Count} present outputs; they must pair up.");
@@ -304,17 +331,20 @@ public sealed class FlanT5Brain : ILocalBrain, IDisposable
 
             var numHeads = DefaultNumHeads;
             var headDimension = DefaultHeadDimension;
-            var firstPastDimensions = decoder.InputMetadata[pastInputNames[0]].Dimensions;
-            if (firstPastDimensions.Length == 4)
+            if (!cacheless)
             {
-                if (firstPastDimensions[1] > 0)
+                var firstPastDimensions = decoder.InputMetadata[pastInputNames[0]].Dimensions;
+                if (firstPastDimensions.Length == 4)
                 {
-                    numHeads = firstPastDimensions[1];
-                }
+                    if (firstPastDimensions[1] > 0)
+                    {
+                        numHeads = firstPastDimensions[1];
+                    }
 
-                if (firstPastDimensions[3] > 0)
-                {
-                    headDimension = firstPastDimensions[3];
+                    if (firstPastDimensions[3] > 0)
+                    {
+                        headDimension = firstPastDimensions[3];
+                    }
                 }
             }
 
@@ -333,7 +363,8 @@ public sealed class FlanT5Brain : ILocalBrain, IDisposable
                 pastInputNames: pastInputNames,
                 presentOutputNames: presentOutputNames,
                 numHeads: numHeads,
-                headDimension: headDimension);
+                headDimension: headDimension,
+                cacheless: cacheless);
         }
 
         private static string FindName(IReadOnlyList<string> names, params string[] candidates)

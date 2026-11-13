@@ -73,7 +73,7 @@ jobs:
           foreach ($relative in @(
             "models\vosk-model-small-en-us-0.15\conf\model.conf",
             "models\brain\encoder_model_quantized.onnx",
-            "models\brain\decoder_model_merged_quantized.onnx",
+            "models\brain\decoder_model_quantized.onnx",
             "models\brain\tokenizer.json",
             "tools\espeak-ng\espeak-ng.exe",
             "licenses\LICENSE-VOSK.txt",
