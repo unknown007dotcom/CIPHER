@@ -188,11 +188,12 @@ public sealed class FlanT5Brain : ILocalBrain, IDisposable
             var logits = decoderResults.First(result => result.Name == layout.LogitsName).AsTensor<float>();
             var vocabSize = logits.Dimensions[2];
             var lastPositionOffset = (logits.Dimensions[1] - 1) * vocabSize;
+            var logitsData = logits.ToArray();
             var bestToken = 0;
             var bestScore = float.NegativeInfinity;
             for (var candidate = 0; candidate < vocabSize; candidate++)
             {
-                var score = logits.Buffer.Span[lastPositionOffset + candidate];
+                var score = logitsData[lastPositionOffset + candidate];
                 if (score > bestScore)
                 {
                     bestScore = score;
