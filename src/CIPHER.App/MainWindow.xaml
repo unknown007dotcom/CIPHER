@@ -137,6 +137,10 @@
                               IsChecked="{Binding SpeechOutputEnabled}"
                               Foreground="#E2E8F0"
                               Margin="10,4" />
+                    <CheckBox Content="On-device AI brain (Flan-T5-small — answers questions and understands free-form commands, fully offline)"
+                              IsChecked="{Binding LocalBrainEnabled}"
+                              Foreground="#E2E8F0"
+                              Margin="10,4" />
                     <TextBlock Text="Voice runs fully offline (Vosk). Put the unzipped vosk-model-small-en-us-0.15 model in %LocalAppData%\CIPHER\models. Speech output needs eSpeak NG; when it is missing, CIPHER says so instead of failing silently."
                                Foreground="#CBD5E1"
                                Margin="10,4"

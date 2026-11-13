@@ -31,6 +31,13 @@ public sealed class InputService
     private const ushort VkInsert = 0x2D;
     private const ushort VkDelete = 0x2E;
     private const ushort VkLWin = 0x5B;
+    private const ushort VkVolumeMute = 0xAD;
+    private const ushort VkVolumeDown = 0xAE;
+    private const ushort VkVolumeUp = 0xAF;
+    private const ushort VkMediaNextTrack = 0xB0;
+    private const ushort VkMediaPrevTrack = 0xB1;
+    private const ushort VkMediaStop = 0xB2;
+    private const ushort VkMediaPlayPause = 0xB3;
 
     private static readonly IReadOnlyDictionary<string, ushort> NamedKeys =
         new Dictionary<string, ushort>(StringComparer.OrdinalIgnoreCase)
@@ -62,7 +69,16 @@ public sealed class InputService
             ["right"] = VkRight,
             ["down"] = VkDown,
             ["printscreen"] = VkSnapshot,
-            ["capslock"] = VkCapital
+            ["capslock"] = VkCapital,
+            ["volumeup"] = VkVolumeUp,
+            ["volumedown"] = VkVolumeDown,
+            ["volumemute"] = VkVolumeMute,
+            ["mutevolume"] = VkVolumeMute,
+            ["playpause"] = VkMediaPlayPause,
+            ["mediaplaypause"] = VkMediaPlayPause,
+            ["nexttrack"] = VkMediaNextTrack,
+            ["previoustrack"] = VkMediaPrevTrack,
+            ["mediastop"] = VkMediaStop
         };
 
     public void TypeText(string text)

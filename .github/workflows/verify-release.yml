@@ -12,7 +12,7 @@ on:
       tag:
         description: "Release tag to verify"
         required: true
-        default: "v1.0.0-rc.1"
+        default: "v1.1.0-rc.1"
   push:
     branches:
       - "arena/12331525-cipher"
@@ -47,7 +47,7 @@ jobs:
         run: |
           $tag = "${{ inputs.tag }}"
           if ([string]::IsNullOrWhiteSpace($tag)) { $tag = "${{ github.event.release.tag_name }}" }
-          if ([string]::IsNullOrWhiteSpace($tag)) { $tag = "v1.0.0-rc.1" }
+          if ([string]::IsNullOrWhiteSpace($tag)) { $tag = "v1.1.0-rc.1" }
           Write-Host "Verifying release tag: $tag"
           "CIPHER_RELEASE_TAG=$tag" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           gh release download $tag --pattern "CIPHER.msi" --pattern "SHA256SUMS.txt" --dir release-assets
@@ -79,8 +79,12 @@ jobs:
           foreach ($relative in @(
             "CIPHER.exe",
             "models\vosk-model-small-en-us-0.15\conf\model.conf",
+            "models\brain\encoder_model_quantized.onnx",
+            "models\brain\decoder_model_merged_quantized.onnx",
+            "models\brain\tokenizer.json",
             "tools\espeak-ng\espeak-ng.exe",
-            "licenses\LICENSE-VOSK.txt")) {
+            "licenses\LICENSE-VOSK.txt",
+            "licenses\LICENSE-FLAN-T5.txt")) {
             if (-not (Test-Path (Join-Path $installDir $relative))) { throw "Missing after install: $relative" }
           }
           $chrome = Get-ChildItem -Path (Join-Path $installDir "playwright\browsers") -Recurse -Filter "chrome.exe" | Select-Object -First 1
@@ -100,6 +104,18 @@ jobs:
             throw "Installed-app harness failed with exit code $LASTEXITCODE."
           }
           Write-Host "::notice title=Release verification::Installed CIPHER.exe launched and passed named-element UI targeting."
+
+      - name: Run installed on-device brain (Stage 11 harness)
+        timeout-minutes: 10
+        shell: pwsh
+        run: |
+          $brainDir = Join-Path $env:LOCALAPPDATA "CIPHERProgram\models\brain"
+          ./src/CIPHER.MilestoneTest/bin/Release/net10.0-windows/CIPHER.MilestoneTest.exe stage11 --brain "$brainDir"
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "::error title=Release verification::Installed-brain Stage 11 harness failed with exit code $LASTEXITCODE"
+            throw "Installed-brain harness failed with exit code $LASTEXITCODE."
+          }
+          Write-Host "::notice title=Release verification::Installed Flan-T5-small brain answers questions and maps free-form commands."
 
       - name: Uninstall published MSI and verify removal
         timeout-minutes: 10

@@ -9,6 +9,7 @@
       vosk/native/win-x64/libvosk.dll    from the restored Vosk NuGet package
       espeak-ng/                         latest eSpeak NG MSI (admin-extracted)
       playwright/browsers/chromium-*     from the local Playwright browser cache
+      brain/                             Flan-T5-small int8 ONNX + tokenizer (~99 MB)
       licenses/                          Apache/GPL notice texts
 
     Run after `dotnet restore CIPHER.sln` (libvosk + license sources come from
@@ -135,10 +136,26 @@ try {
     }
     Write-Host '[OK] Playwright Chromium'
 
+    # --- Local brain: Flan-T5-small (80M params, int8 ONNX, ~99 MB total) -------------
+    # The Stage 11 on-device brain. Xenova's transformers.js export of Google's
+    # Flan-T5-small (Apache-2.0): merged decoder with KV cache + SentencePiece
+    # tokenizer.json, downloaded once here and hash-pinned in the manifest like
+    # every other payload. Install/runtime never download anything.
+    $brainDir = Join-Path $deps 'brain'
+    if (-not (Test-Path (Join-Path $brainDir 'decoder_model_merged_quantized.onnx'))) {
+        New-Item -ItemType Directory -Path $brainDir -Force | Out-Null
+        $brainBase = 'https://huggingface.co/Xenova/flan-t5-small/resolve/main'
+        Invoke-WithRetry { Invoke-WebRequest -Uri "$brainBase/onnx/encoder_model_quantized.onnx" -OutFile (Join-Path $brainDir 'encoder_model_quantized.onnx') } 'Brain encoder download'
+        Invoke-WithRetry { Invoke-WebRequest -Uri "$brainBase/onnx/decoder_model_merged_quantized.onnx" -OutFile (Join-Path $brainDir 'decoder_model_merged_quantized.onnx') } 'Brain decoder download'
+        Invoke-WithRetry { Invoke-WebRequest -Uri "$brainBase/tokenizer.json" -OutFile (Join-Path $brainDir 'tokenizer.json') } 'Brain tokenizer download'
+    }
+    Write-Host '[OK] Local brain (Flan-T5-small)'
+
     # --- Licenses ----------------------------------------------------------------------
     $licenseDir = Join-Path $deps 'licenses'
     New-Item -ItemType Directory -Path $licenseDir -Force | Out-Null
     Invoke-WithRetry { Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/alphacep/vosk-api/master/COPYING' -OutFile (Join-Path $licenseDir 'LICENSE-VOSK.txt') } 'Vosk license download'
+    Invoke-WithRetry { Invoke-WebRequest -Uri 'https://www.apache.org/licenses/LICENSE-2.0.txt' -OutFile (Join-Path $licenseDir 'LICENSE-FLAN-T5.txt') } 'Flan-T5 license download'
     Invoke-WithRetry { Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/microsoft/playwright/main/LICENSE' -OutFile (Join-Path $licenseDir 'LICENSE-PLAYWRIGHT.txt') } 'Playwright license download'
     $gpl = Get-ChildItem -Path $temp -Recurse -Filter 'COPYING*' -ErrorAction SilentlyContinue | Select-Object -First 1
     if ($gpl) {

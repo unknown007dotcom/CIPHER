@@ -28,10 +28,11 @@ public sealed record ParsedCommand(
             Suggestions = new[]
             {
                 "open Notepad",
-                "switch to Notepad",
+                "search for the Apollo 11 Moon landing",
+                "what is the capital of France",
+                "start dictation",
                 "type Hello from CIPHER",
                 "press Ctrl+S",
-                "list files in C:\\Users\\Public",
                 "create folder C:\\Temp\\CIPHER-Test"
             }
         };

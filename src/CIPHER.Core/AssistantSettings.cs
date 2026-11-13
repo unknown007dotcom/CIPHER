@@ -17,6 +17,16 @@ public sealed record AssistantSettings
     /// <summary>Path to espeak-ng.exe; empty means auto-detect (app folder, Program Files, PATH).</summary>
     public string EspeakExecutablePath { get; init; } = string.Empty;
 
+    /// <summary>
+    /// Master switch for the Stage 11 on-device brain (Flan-T5-small). On by default:
+    /// when the deterministic grammar cannot map a request, the local model classifies
+    /// it, and questions are answered locally. Nothing is sent off the PC either way.
+    /// </summary>
+    public bool LocalBrainEnabled { get; init; } = true;
+
+    /// <summary>Directory containing the on-device brain model files (Stage 11).</summary>
+    public string BrainModelPath { get; init; } = CreateDefaultBrainModelPath();
+
     /// <summary>Speak command results aloud with eSpeak NG when available.</summary>
     public bool SpeechOutputEnabled { get; init; }
 
@@ -45,10 +55,23 @@ public sealed record AssistantSettings
             VoiceModelPath = string.IsNullOrWhiteSpace(VoiceModelPath)
                 ? CreateDefaultVoiceModelPath()
                 : VoiceModelPath.Trim(),
+            BrainModelPath = string.IsNullOrWhiteSpace(BrainModelPath)
+                ? CreateDefaultBrainModelPath()
+                : BrainModelPath.Trim(),
             EspeakExecutablePath = EspeakExecutablePath?.Trim() ?? string.Empty,
             AiBaseUrl = string.IsNullOrWhiteSpace(AiBaseUrl) ? "https://api.openai.com/v1" : AiBaseUrl.Trim(),
             AiModel = string.IsNullOrWhiteSpace(AiModel) ? "gpt-4o-mini" : AiModel.Trim()
         };
+    }
+
+    private static string CreateDefaultBrainModelPath()
+    {
+        var localApplicationData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        var root = string.IsNullOrWhiteSpace(localApplicationData)
+            ? Path.GetTempPath()
+            : localApplicationData;
+
+        return Path.Combine(root, "CIPHER", "models", "brain");
     }
 
     private static string CreateDefaultVoiceModelPath()

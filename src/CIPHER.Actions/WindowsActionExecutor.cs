@@ -58,6 +58,10 @@ public sealed class WindowsActionExecutor : IActionExecutor
             IntentKind.CopyPath or
             IntentKind.ListQuarantine or
             IntentKind.RestoreQuarantineItem or
+            IntentKind.SetVolume or
+            IntentKind.LockWorkstation or
+            IntentKind.ShutdownComputer or
+            IntentKind.RestartComputer or
             IntentKind.RenamePath;
     }
 
@@ -127,6 +131,10 @@ public sealed class WindowsActionExecutor : IActionExecutor
             IntentKind.DeletePath => DeletePath(command, context),
             IntentKind.ListQuarantine => ListQuarantine(),
             IntentKind.RestoreQuarantineItem => RestoreQuarantineItem(command),
+            IntentKind.SetVolume => SetVolume(command),
+            IntentKind.LockWorkstation => LockWorkstation(),
+            IntentKind.ShutdownComputer => PowerAction(restart: false),
+            IntentKind.RestartComputer => PowerAction(restart: true),
             IntentKind.MovePath => MovePath(command, context, isRename: false),
             IntentKind.RenamePath => MovePath(command, context, isRename: true),
             IntentKind.CopyPath => CopyPath(command, context, cancellationToken),
@@ -450,6 +458,65 @@ public sealed class WindowsActionExecutor : IActionExecutor
 
         _inputService.PressKeys(command.Argument);
         return ActionResult.Ok($"Pressed {command.Argument}.", verified: false);
+    }
+
+    /// <summary>Volume keys are sent twice for a clearly audible step. Mute is a toggle.</summary>
+    private ActionResult SetVolume(ParsedCommand command)
+    {
+        var direction = command.Argument?.Trim().ToLowerInvariant();
+        switch (direction)
+        {
+            case "up":
+                _inputService.PressKeys("VolumeUp");
+                _inputService.PressKeys("VolumeUp");
+                return ActionResult.Ok("Volume turned up.", verified: false);
+            case "down":
+                _inputService.PressKeys("VolumeDown");
+                _inputService.PressKeys("VolumeDown");
+                return ActionResult.Ok("Volume turned down.", verified: false);
+            case "mute":
+            case "unmute":
+                _inputService.PressKeys("VolumeMute");
+                return ActionResult.Ok(
+                    direction == "mute" ? "Sound muted." : "Sound unmuted.",
+                    verified: false);
+            default:
+                return ActionResult.Fail(
+                    $"Unknown volume direction '{command.Argument}'. Say volume up, volume down, mute, or unmute.",
+                    "VOLUME_DIRECTION_UNKNOWN");
+        }
+    }
+
+    private ActionResult LockWorkstation()
+    {
+        return NativeMethods.LockWorkStation()
+            ? ActionResult.Ok("The computer is locked.", verified: true)
+            : ActionResult.Fail("Windows could not lock the workstation.", "LOCK_FAILED");
+    }
+
+    /// <summary>
+    /// Power actions use shutdown.exe with a 10-second delay. The policy layer has
+    /// already required explicit confirmation before this runs; the message tells the
+    /// user how to abort the countdown from any command prompt.
+    /// </summary>
+    private ActionResult PowerAction(bool restart)
+    {
+        using var process = Process.Start(new ProcessStartInfo
+        {
+            FileName = "shutdown.exe",
+            Arguments = restart ? "/r /t 10" : "/s /t 10",
+            UseShellExecute = false,
+            CreateNoWindow = true
+        });
+
+        var verb = restart ? "Restarting" : "Shutting down";
+        return process is null
+            ? ActionResult.Fail(
+                $"Windows did not start the {(restart ? "restart" : "shutdown")} countdown.",
+                "POWER_ACTION_FAILED")
+            : ActionResult.Ok(
+                $"{verb} in 10 seconds. To cancel, open a command prompt and run: shutdown /a",
+                verified: false);
     }
 
     private ActionResult ClickUiElement(ParsedCommand command)

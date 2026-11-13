@@ -49,6 +49,9 @@ public sealed record BrowserSessionOptions
 /// <summary>Information about one open browser tab.</summary>
 public sealed record BrowserTabInfo(int Index, string Title, string Url, bool IsActive);
 
+/// <summary>One web search result: title, destination URL, and text snippet.</summary>
+public sealed record WebSearchResult(string Title, string Url, string Snippet);
+
 /// <summary>Outcome of a browser click, including whether it navigated.</summary>
 public sealed record BrowserClickOutcome(string Target, string UrlBefore, string UrlAfter)
 {

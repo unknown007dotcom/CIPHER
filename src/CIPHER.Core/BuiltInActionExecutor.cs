@@ -27,6 +27,10 @@ public sealed class BuiltInActionExecutor : IActionExecutor
                 "press <keys>, read text in <window>, verify <window> contains <text>, " +
                 "click <name> button in <window>, type <text> into <field> in <window>, " +
                 "open website <url>, read page text, browser click <name>, browser fill <field> with <text>, browser download <link>, " +
+                "search for <query> (I read the top results aloud), ask <question> or just ask a question " +
+                "(answered by the on-device brain, fully offline), start dictation / stop dictation (I type what you say), " +
+                "volume up, volume down, mute, unmute, lock the computer, shut down the computer, " +
+                "restart the computer (the last two always ask for confirmation first), " +
                 "ask ai <question> (external AI delegation, only when enabled in Settings), " +
                 "alias <name> = <command>, list aliases, forget alias <name>, " +
                 "remember app <name> at <path>, list apps, " +

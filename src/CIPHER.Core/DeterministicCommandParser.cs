@@ -60,7 +60,69 @@ public sealed class DeterministicCommandParser : ICommandParser
             return Create(original, commandText, IntentKind.GetSystemInfo, summary: "Get system information", confidence: 0.98);
         }
 
+        // --- Jarvis essentials (Stage 11): dictation, volume, lock, power, web search.
+        // These verbs are unambiguous, so they stay deterministic; free-form phrasing
+        // the grammar cannot pin down is classified by the on-device brain instead.
+        if (IsMatch(matchText, "^((start|begin|take|enable)( dictation| dictation mode)?|dictation( mode)? (on|start))$"))
+        {
+            return Create(original, commandText, IntentKind.StartDictation, summary: "Start dictation (type what you say)", confidence: 0.97);
+        }
+
+        if (IsMatch(matchText, "^((stop|end|finish|disable)( dictation| dictation mode)?|dictation( mode)? (off|stop))$"))
+        {
+            return Create(original, commandText, IntentKind.StopDictation, summary: "Stop dictation", confidence: 0.97);
+        }
+
+        if (IsMatch(matchText, "^(volume up|turn( the)? volume up|turn up( the)? volume|raise( the)? volume|increase( the)? volume|sound up)$"))
+        {
+            return Create(original, commandText, IntentKind.SetVolume, argument: "up", summary: "Turn the volume up", confidence: 0.97);
+        }
+
+        if (IsMatch(matchText, "^(volume down|turn( the)? volume down|turn down( the)? volume|lower( the)? volume|decrease( the)? volume|sound down)$"))
+        {
+            return Create(original, commandText, IntentKind.SetVolume, argument: "down", summary: "Turn the volume down", confidence: 0.97);
+        }
+
+        if (IsMatch(matchText, "^mute( the)?( sound| volume| audio)?$"))
+        {
+            return Create(original, commandText, IntentKind.SetVolume, argument: "mute", summary: "Mute the sound", confidence: 0.97);
+        }
+
+        if (IsMatch(matchText, "^unmute( the)?( sound| volume| audio)?$"))
+        {
+            return Create(original, commandText, IntentKind.SetVolume, argument: "unmute", summary: "Unmute the sound", confidence: 0.97);
+        }
+
+        if (IsMatch(matchText, "^lock( the)?( computer| pc| workstation| screen| device)?$"))
+        {
+            return Create(original, commandText, IntentKind.LockWorkstation, risk: RiskLevel.Medium, summary: "Lock the computer", confidence: 0.97);
+        }
+
+        if (IsMatch(matchText, "^(shut ?down|power off)( the)?( computer| pc)?$"))
+        {
+            return Create(original, commandText, IntentKind.ShutdownComputer, risk: RiskLevel.Critical, summary: "Shut down the computer", confidence: 0.97);
+        }
+
+        if (IsMatch(matchText, "^(restart|reboot)( the)?( computer| pc)?$"))
+        {
+            return Create(original, commandText, IntentKind.RestartComputer, risk: RiskLevel.Critical, summary: "Restart the computer", confidence: 0.97);
+        }
+
         Match match;
+
+        match = Match(commandText, "^(?:search(?:\\s+the\\s+(?:web|internet))?\\s+for|search|google(?:\\s+for)?|look\\s+up|find\\s+(?:out\\s+)?about|find\\s+information\\s+(?:on|about))\\s+(?<query>.+)$");
+        if (match.Success)
+        {
+            var query = CleanTarget(match.Groups["query"].Value);
+            return Create(
+                original,
+                commandText,
+                IntentKind.WebSearch,
+                target: query,
+                risk: RiskLevel.Medium,
+                summary: $"Search the web for {query}",
+                confidence: 0.96);
+        }
 
         match = Match(commandText, "^(?:run|execute)\\s+(?:command|cmd)\\s*[:\\-]?\\s*(?<target>.+)$");
         if (match.Success)
@@ -372,6 +434,19 @@ public sealed class DeterministicCommandParser : ICommandParser
                 confidence: 0.95);
         }
 
+        match = Match(commandText, "^ask\\s+(?<question>.+)$");
+        if (match.Success)
+        {
+            var question = match.Groups["question"].Value.Trim();
+            return Create(
+                original,
+                commandText,
+                IntentKind.AskLocalBrain,
+                target: question,
+                summary: "Answer with the on-device brain",
+                confidence: 0.95);
+        }
+
         match = Match(commandText, "^(?:open website|browse to|go to|navigate to|visit)\\s+(?<target>.+)$");
         if (match.Success)
         {
@@ -442,6 +517,22 @@ public sealed class DeterministicCommandParser : ICommandParser
                 confidence: 0.94);
         }
 
+        // Free-standing questions go to the on-device brain. This catch-all sits after
+        // every specific "what …" command above (time, date, files, window text, page
+        // title), so it only sees genuine questions. Deliberately excluded: "can/could
+        // you …" phrasing, which is usually a command in disguise — those fall through
+        // to Unknown here and are classified by the brain parser instead.
+        if (IsMatch(matchText, "^(what|who|whom|whose|when|where|why|which|how|tell me about|explain|define|describe)\\b.*$"))
+        {
+            return Create(
+                original,
+                commandText,
+                IntentKind.AskLocalBrain,
+                target: commandText,
+                summary: "Answer with the on-device brain",
+                confidence: 0.9);
+        }
+
         match = Match(commandText, "^(?:open|launch|start)\\s+(?:the\\s+)?(?<target>.+)$");
         if (match.Success)
         {
@@ -465,6 +556,18 @@ public sealed class DeterministicCommandParser : ICommandParser
                     commandText,
                     IntentKind.OpenPath,
                     target: CleanPathTarget(target),
+                    summary: $"Open {target}",
+                    confidence: 0.95);
+            }
+
+            var folderPath = KnownFolderPath(target);
+            if (folderPath is not null)
+            {
+                return Create(
+                    original,
+                    commandText,
+                    IntentKind.OpenPath,
+                    target: folderPath,
                     summary: $"Open {target}",
                     confidence: 0.95);
             }
@@ -585,6 +688,40 @@ public sealed class DeterministicCommandParser : ICommandParser
         return lastDot > 0 &&
                lastDot < host.Length - 1 &&
                WebTopLevelDomains.Contains(host[(lastDot + 1)..]);
+    }
+
+    /// <summary>
+    /// Friendly folder names ("open downloads", "open my documents") resolve to the
+    /// user's real shell folders so they open in File Explorer instead of being
+    /// treated as application names.
+    /// </summary>
+    private static string? KnownFolderPath(string target)
+    {
+        var name = WakeWordDetector.NormalizeWhitespace(target).Trim().ToLowerInvariant();
+        if (name.EndsWith(" folder", StringComparison.Ordinal))
+        {
+            name = name[..^" folder".Length].Trim();
+        }
+
+        var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var path = name switch
+        {
+            "documents" or "my documents" =>
+                Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+            "downloads" => string.IsNullOrWhiteSpace(userProfile)
+                ? string.Empty
+                : Path.Combine(userProfile, "Downloads"),
+            "desktop" => Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
+            "pictures" or "my pictures" or "photos" =>
+                Environment.GetFolderPath(Environment.SpecialFolder.MyPictures),
+            "music" or "my music" => Environment.GetFolderPath(Environment.SpecialFolder.MyMusic),
+            "videos" or "my videos" or "movies" =>
+                Environment.GetFolderPath(Environment.SpecialFolder.MyVideos),
+            "home" or "user folder" or "my folder" => userProfile,
+            _ => string.Empty
+        };
+
+        return string.IsNullOrWhiteSpace(path) ? null : path;
     }
 
     private static bool LooksLikePath(string value)

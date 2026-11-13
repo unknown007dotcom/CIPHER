@@ -203,6 +203,49 @@ public sealed class DefaultActionPolicy : IActionPolicy
                     "is previewed for approval first; nothing is sent without it. The service's reply is " +
                     "saved locally, and any command it suggests is shown for review — never run automatically.");
 
+            case IntentKind.WebSearch:
+                return Allow(
+                    RiskLevel.Medium,
+                    false,
+                    "Searching sends only the query text to the web search engine and reads public results. " +
+                    "Nothing else about this PC leaves the device.");
+
+            case IntentKind.AskLocalBrain:
+                return Allow(
+                    RiskLevel.Low,
+                    false,
+                    "The bundled on-device brain (Flan-T5-small) answers locally. Nothing leaves this PC.");
+
+            case IntentKind.StartDictation:
+            case IntentKind.StopDictation:
+                return Allow(
+                    RiskLevel.Low,
+                    false,
+                    "Dictation types what the user says into the focused window and stops on 'stop dictation'.");
+
+            case IntentKind.SetVolume:
+                return Allow(RiskLevel.Low, false, "Changing the system volume is safe and reversible.");
+
+            case IntentKind.LockWorkstation:
+                return Allow(
+                    RiskLevel.Medium,
+                    false,
+                    "Locking shows the Windows sign-in screen. Running applications and unsaved work are not touched.");
+
+            case IntentKind.ShutdownComputer:
+                return Allow(
+                    RiskLevel.Critical,
+                    requiresConfirmation: true,
+                    "Shutting down closes every application. CIPHER uses a 10-second delay, " +
+                    "but unsaved work in other applications can still be lost.");
+
+            case IntentKind.RestartComputer:
+                return Allow(
+                    RiskLevel.Critical,
+                    requiresConfirmation: true,
+                    "Restarting closes every application. CIPHER uses a 10-second delay, " +
+                    "but unsaved work in other applications can still be lost.");
+
             case IntentKind.RestoreQuarantineItem:
                 return Allow(
                     RiskLevel.Medium,

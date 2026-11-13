@@ -18,6 +18,10 @@ internal static partial class NativeMethods
     internal static partial IntPtr GetForegroundWindow();
 
     [LibraryImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool LockWorkStation();
+
+    [LibraryImport("user32.dll", SetLastError = true)]
     internal static partial uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
 
     [LibraryImport("user32.dll")]

@@ -237,6 +237,7 @@ jobs:
             dependencies/vosk
             dependencies/espeak-ng
             dependencies/playwright
+            dependencies/brain
             dependencies/licenses
             dependencies/manifest.sha256
           key: cipher-deps-${{ hashFiles('scripts/stage-dependencies.ps1') }}
@@ -248,6 +249,13 @@ jobs:
           # The script fails the step itself on any error ($ErrorActionPreference
           # is Stop inside it); $LASTEXITCODE only tracks native commands.
           ./scripts/stage-dependencies.ps1
+
+      - name: Run Stage 11 local brain harness (bundled Flan-T5-small)
+        timeout-minutes: 10
+        shell: pwsh
+        run: |
+          ./src/CIPHER.MilestoneTest/bin/Release/net10.0-windows/CIPHER.MilestoneTest.exe stage11 --brain dependencies/brain
+          if ($LASTEXITCODE -ne 0) { throw "Stage 11 brain harness failed with exit code $LASTEXITCODE." }
 
       - name: Build CIPHER.msi via package.bat (Stage 10)
         timeout-minutes: 20
@@ -298,10 +306,14 @@ jobs:
           $installDir = $root.DirectoryName
           foreach ($relative in @(
             "models\vosk-model-small-en-us-0.15\conf\model.conf",
+            "models\brain\encoder_model_quantized.onnx",
+            "models\brain\decoder_model_merged_quantized.onnx",
+            "models\brain\tokenizer.json",
             "tools\espeak-ng\espeak-ng.exe",
             "licenses\LICENSE-VOSK.txt",
             "licenses\LICENSE-ESPEAK-NG.txt",
-            "licenses\LICENSE-PLAYWRIGHT.txt")) {
+            "licenses\LICENSE-PLAYWRIGHT.txt",
+            "licenses\LICENSE-FLAN-T5.txt")) {
             if (-not (Test-Path (Join-Path $installDir $relative))) {
               Write-Host "::error title=MSI payload::Missing from MSI payload: $relative (install dir: $installDir)"
               throw "Missing from MSI payload: $relative"

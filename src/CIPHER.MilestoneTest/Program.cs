@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using System.IO;
 using CIPHER.Actions;
+using CIPHER.Brain;
+using CIPHER.Browser;
 using CIPHER.Core;
 
 namespace CIPHER.MilestoneTest;
@@ -20,6 +22,12 @@ namespace CIPHER.MilestoneTest;
 ///   stage9     Stage 9 security gate — delete → quarantine → list → restore round-trip
 ///              on temporary files, proving blocked and confirmation-denied actions do
 ///              not mutate data. Usage: CIPHER.MilestoneTest.exe stage9
+///
+///   stage11    Stage 11 on-device brain — loads the bundled Flan-T5-small model and
+///              proves the tokenizer round-trips, the brain answers factual questions
+///              through the real task engine, free-form commands the grammar misses
+///              get classified into structured intents, and search results get
+///              summarized. Usage: CIPHER.MilestoneTest.exe stage11 --brain &lt;dir&gt;
 ///
 /// Exit codes: 0 = every scored step passed, 1 = a scored step failed,
 /// 3 = everything was skipped (targets unavailable in this environment).
@@ -41,6 +49,11 @@ internal static class Program
         if (args.Any(arg => string.Equals(arg, "stage9", StringComparison.OrdinalIgnoreCase)))
         {
             return await RunStage9Async();
+        }
+
+        if (args.Any(arg => string.Equals(arg, "stage11", StringComparison.OrdinalIgnoreCase)))
+        {
+            return await RunStage11Async(args);
         }
 
         return await RunMilestoneAsync();
@@ -533,6 +546,194 @@ internal static class Program
         Console.WriteLine(allPassed
             ? "::notice title=CIPHER Stage 9 security gate::STAGE9-PASS delete→quarantine→list→restore round-tripped; denied and blocked actions mutated nothing."
             : $"::error title=CIPHER Stage 9 security gate::STAGE9-FAIL failed steps: {string.Join(", ", Steps.Where(step => !step.Passed).Select(step => step.Name))}");
+        return allPassed ? 0 : 1;
+    }
+
+    private static async Task<int> RunStage11Async(string[] args)
+    {
+        Console.WriteLine("CIPHER Stage 11 on-device brain harness (Flan-T5-small, 80M parameters)");
+        Console.WriteLine();
+
+        Steps.Clear();
+        Skips.Clear();
+
+        var brainArgument = GetArgumentValue(args, "--brain");
+        var brainDirectory = !string.IsNullOrWhiteSpace(brainArgument)
+            ? brainArgument
+            : Environment.GetEnvironmentVariable("CIPHER_BRAIN_DIR");
+        if (string.IsNullOrWhiteSpace(brainDirectory))
+        {
+            brainDirectory = Path.Combine(Environment.CurrentDirectory, "dependencies", "brain");
+        }
+
+        brainDirectory = Path.GetFullPath(brainDirectory);
+        Console.WriteLine($"Brain directory: {brainDirectory}");
+        Console.WriteLine();
+
+        try
+        {
+            // 1. The bundled payload is complete and inside the 200 MB budget.
+            var payloadFiles = new[]
+            {
+                BrainModelLocator.EncoderFileName,
+                BrainModelLocator.DecoderFileName,
+                BrainModelLocator.TokenizerFileName
+            };
+            var missing = payloadFiles
+                .Where(name => !File.Exists(Path.Combine(brainDirectory, name)))
+                .ToList();
+            var totalBytes = payloadFiles
+                .Where(name => File.Exists(Path.Combine(brainDirectory, name)))
+                .Sum(name => new FileInfo(Path.Combine(brainDirectory, name)).Length);
+            Report(
+                "Brain model files bundled (encoder, decoder, tokenizer)",
+                missing.Count == 0,
+                missing.Count == 0
+                    ? $"{payloadFiles.Length} files present in {brainDirectory}"
+                    : $"Missing: {string.Join(", ", missing)}");
+            Report(
+                "Brain payload under 200 MB",
+                totalBytes > 0 && totalBytes < 200_000_000,
+                $"{totalBytes:N0} bytes total");
+            if (missing.Count > 0)
+            {
+                return FinishStage11();
+            }
+
+            // 2. The SentencePiece tokenizer behaves: EOS appended, text round-trips.
+            var tokenizer = SentencePieceUnigramTokenizer.FromFile(
+                Path.Combine(brainDirectory, BrainModelLocator.TokenizerFileName));
+            var probeIds = tokenizer.Encode("open notepad");
+            Report(
+                "Tokenizer encodes and appends EOS",
+                probeIds.Count > 1 && probeIds[^1] == tokenizer.EosId,
+                $"ids: {string.Join(",", probeIds)}");
+            var roundtrip = tokenizer.Decode(tokenizer.Encode("Hello world, this is CIPHER."));
+            Report(
+                "Tokenizer round-trips text",
+                string.Equals(roundtrip, "Hello world, this is CIPHER.", StringComparison.Ordinal),
+                $"round-trip: '{roundtrip}'");
+            Report(
+                "Tokenizer carries the full T5 vocabulary",
+                tokenizer.VocabSize >= 32_000,
+                $"vocab size: {tokenizer.VocabSize}");
+
+            // 3. The brain answers factual questions through the real task engine.
+            var brain = new FlanT5Brain(brainDirectory);
+            Report("Brain reports itself available", brain.IsAvailable, brain.ModelDescription);
+            if (!brain.IsAvailable)
+            {
+                return FinishStage11();
+            }
+
+            var brainExecutor = new LocalBrainActionExecutor(() => brain);
+            var engine = new TaskEngine(
+                new BrainCommandParser(new DeterministicCommandParser(), brain),
+                new DefaultActionPolicy(),
+                new IActionExecutor[] { new BuiltInActionExecutor(), brainExecutor });
+
+            var capital = await engine.ExecuteTextAsync("what is the capital of France");
+            Report(
+                "Brain answers 'what is the capital of France'",
+                capital.ActionResult?.Success == true &&
+                (capital.ActionResult.Message.Contains("Paris", StringComparison.OrdinalIgnoreCase)),
+                capital.ActionResult?.Message ?? capital.Policy.Reason);
+
+            var shakespeare = await engine.ExecuteTextAsync("who wrote Romeo and Juliet");
+            Report(
+                "Brain answers 'who wrote Romeo and Juliet'",
+                shakespeare.ActionResult?.Success == true &&
+                (shakespeare.ActionResult.Message.Contains("Shakespeare", StringComparison.OrdinalIgnoreCase)),
+                shakespeare.ActionResult?.Message ?? shakespeare.Policy.Reason);
+
+            // 4. Free-form commands the deterministic grammar alone cannot map are
+            // classified by the brain into structured, policy-checked intents.
+            var deterministicOnly = new DeterministicCommandParser().Parse(
+                "can you open the calculator for me");
+            Report(
+                "Deterministic grammar alone misses free-form phrasing",
+                deterministicOnly.Intent == IntentKind.Unknown,
+                $"intent: {deterministicOnly.Intent}");
+
+            var composite = new BrainCommandParser(new DeterministicCommandParser(), brain);
+            var openCalc = composite.Parse("can you open the calculator for me");
+            Report(
+                "Brain maps 'can you open the calculator for me' to OpenApplication",
+                openCalc.Intent == IntentKind.OpenApplication &&
+                (openCalc.Target?.Contains("calculator", StringComparison.OrdinalIgnoreCase) ?? false),
+                $"intent: {openCalc.Intent}, target: '{openCalc.Target}'");
+
+            var moon = composite.Parse("find me information about the moon landing");
+            Report(
+                "Brain maps 'find me information about the moon landing' to WebSearch",
+                moon.Intent == IntentKind.WebSearch,
+                $"intent: {moon.Intent}, target: '{moon.Target}'");
+
+            // 5. Search results are summarized by the brain (canned context here;
+            // the live probe below covers the real network path).
+            var summary = await brainExecutor.SummarizeSearchAsync(
+                "What year did Apollo 11 land on the Moon?",
+                new[]
+                {
+                    "Apollo 11 Moon landing: Apollo 11 was the first crewed mission to land " +
+                    "on the Moon, touching down on July 20, 1969, with Neil Armstrong and " +
+                    "Buzz Aldrin aboard the Lunar Module Eagle."
+                },
+                CancellationToken.None);
+            Report(
+                "Brain summarizes search results (mentions 1969)",
+                summary is not null && summary.Contains("1969", StringComparison.Ordinal),
+                summary ?? "(no summary)");
+
+            // 6. Live web search through the bundled browser. Evidence only: runner
+            // network variability must not gate the stage, so failures report as SKIP.
+            try
+            {
+                using var searchTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(90));
+                var searchExecutor = new WebSearchExecutor(
+                    summarizer: (query, results, cancellationToken) => brainExecutor.SummarizeSearchAsync(
+                        query,
+                        results.Select(result => $"{result.Title}: {result.Snippet}").ToList(),
+                        cancellationToken));
+                var searchCommand = new DeterministicCommandParser().Parse("search for Microsoft .NET");
+                var search = await searchExecutor.ExecuteAsync(
+                    searchCommand, CommandContext.Current, searchTimeout.Token);
+                if (search.Success)
+                {
+                    Report("Live web search returns results", true, search.Message);
+                }
+                else
+                {
+                    ReportSkip("Live web search returns results", search.Message);
+                }
+
+                await searchExecutor.DisposeAsync();
+            }
+            catch (Exception ex)
+            {
+                ReportSkip("Live web search returns results", $"{ex.GetType().Name}: {ex.Message}");
+            }
+
+            brain.Dispose();
+            return FinishStage11();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"::error title=CIPHER Stage 11 brain::Harness exception: {ex.Message}");
+            Console.WriteLine($"STAGE11 RESULT: FAIL (exception: {ex.GetType().Name}: {ex.Message})");
+            return 1;
+        }
+    }
+
+    private static int FinishStage11()
+    {
+        var passedCount = Steps.Count(step => step.Passed);
+        var allPassed = Steps.Count > 0 && passedCount == Steps.Count;
+        Console.WriteLine();
+        Console.WriteLine($"STAGE11 RESULT: {(allPassed ? "PASS" : "FAIL")} ({passedCount}/{Steps.Count} steps)");
+        Console.WriteLine(allPassed
+            ? "::notice title=CIPHER Stage 11 brain::[STAGE11-PASS] bundled Flan-T5-small loads on-device; tokenizer, question answering, free-form intent mapping, and search summarization verified."
+            : $"::error title=CIPHER Stage 11 brain::STAGE11-FAIL failed steps: {string.Join(", ", Steps.Where(step => !step.Passed).Select(step => step.Name))}");
         return allPassed ? 0 : 1;
     }
 

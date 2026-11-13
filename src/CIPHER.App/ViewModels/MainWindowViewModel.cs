@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
 using CIPHER.Actions;
+using CIPHER.Brain;
 using CIPHER.Browser;
 using CIPHER.Core;
 using CIPHER.Delegation;
@@ -16,7 +17,20 @@ public sealed class MainWindowViewModel : ObservableObject
     private readonly ISettingsStore _settingsStore;
     private readonly IActionExecutor[] _executors;
     private readonly BrowserActionExecutor _browserExecutor;
+    private readonly LocalBrainActionExecutor _brainExecutor;
+    private readonly WebSearchExecutor _webSearchExecutor;
     private AssistantSettings _settings = new();
+
+    // Stage 11 on-device brain + dictation state. The brain loads lazily on first
+    // use and is shared by the fallback parser, the question executor, and the
+    // search summarizer; dictation typing reuses the same SendInput path as the
+    // deterministic TypeText executor.
+    private ILocalBrain? _brain;
+    private bool _brainProbed;
+    private bool _brainUnavailableReported;
+    private bool _dictationMode;
+    private bool _dictationListeningOwned;
+    private readonly InputService _dictationInput = new();
     private CancellationTokenSource? _cancellationTokenSource;
 
     private SqliteMemoryStore? _memoryStore;
@@ -60,6 +74,12 @@ public sealed class MainWindowViewModel : ObservableObject
         // The browser session starts lazily on the first browser command and runs
         // headed in the app so the user can see and take over the page at any time.
         _browserExecutor = new BrowserActionExecutor(new BrowserSessionOptions { Headless = false });
+        _brainExecutor = new LocalBrainActionExecutor(() => _settings.LocalBrainEnabled ? GetBrain() : null);
+        _webSearchExecutor = new WebSearchExecutor(
+            summarizer: (query, results, cancellationToken) => _brainExecutor.SummarizeSearchAsync(
+                query,
+                results.Select(result => $"{result.Title}: {result.Snippet}").ToList(),
+                cancellationToken));
         _executors = new IActionExecutor[]
         {
             new BuiltInActionExecutor(),
@@ -70,6 +90,9 @@ public sealed class MainWindowViewModel : ObservableObject
                     ? Task.FromResult<string?>(null)
                     : _memoryStore.GetAppPathAsync(name, cancellationToken)),
             _browserExecutor,
+            _brainExecutor,
+            _webSearchExecutor,
+            new DictationControlExecutor(),
             new DelegationActionExecutor(() => new AiDelegationOptions(
                 _settings.AiDelegationEnabled && !global::CIPHER.App.App.IsSafeMode,
                 _settings.AiBaseUrl,
@@ -236,6 +259,18 @@ public sealed class MainWindowViewModel : ObservableObject
         set => SetProperty(ref _aiDelegationEnabled, value);
     }
 
+    private bool _localBrainEnabled = true;
+
+    /// <summary>
+    /// Master switch for the Stage 11 on-device brain (persisted; on by default).
+    /// When off, CIPHER uses the deterministic command grammar only.
+    /// </summary>
+    public bool LocalBrainEnabled
+    {
+        get => _localBrainEnabled;
+        set => SetProperty(ref _localBrainEnabled, value);
+    }
+
     public string AiBaseUrl
     {
         get => _aiBaseUrl;
@@ -261,6 +296,7 @@ public sealed class MainWindowViewModel : ObservableObject
         AlwaysOnTop = _settings.AlwaysOnTop;
         WakePhrase = _settings.WakePhrase;
         SpeechOutputEnabled = _settings.SpeechOutputEnabled;
+        LocalBrainEnabled = _settings.LocalBrainEnabled;
         AiDelegationEnabled = _settings.AiDelegationEnabled;
         AiBaseUrl = _settings.AiBaseUrl;
         AiModel = _settings.AiModel;
@@ -275,6 +311,19 @@ public sealed class MainWindowViewModel : ObservableObject
         }
 
         await InitializeMemoryAsync().ConfigureAwait(true);
+
+        // Report brain readiness up front (file probe only — the model itself loads
+        // lazily on the first question so startup stays instant).
+        if (_settings.LocalBrainEnabled)
+        {
+            var brainDirectory = BrainModelLocator.Resolve(_settings.BrainModelPath);
+            AddConversation(brainDirectory is not null
+                ? $"CIPHER: On-device brain ready ({BrainModelLocator.ModelDisplayName}). " +
+                  "Ask me a question, say 'search for …' and I will read the results aloud, " +
+                  "or say 'start dictation' and I will type what you say."
+                : "CIPHER: The on-device brain is enabled but its model files were not found, " +
+                  "so questions and free-form phrasing will use the built-in command list only.");
+        }
     }
 
     /// <summary>
@@ -354,6 +403,8 @@ public sealed class MainWindowViewModel : ObservableObject
             _voiceListener = null;
             _speechSynthesizer?.Dispose();
             _speechSynthesizer = null;
+            (_brain as IDisposable)?.Dispose();
+            _brain = null;
             _memoryStore?.Dispose();
             _memoryStore = null;
             _memoryCommands = null;
@@ -366,6 +417,15 @@ public sealed class MainWindowViewModel : ObservableObject
         try
         {
             await _browserExecutor.DisposeAsync().ConfigureAwait(false);
+        }
+        catch (Exception)
+        {
+            // Browser shutdown must never block application exit.
+        }
+
+        try
+        {
+            await _webSearchExecutor.DisposeAsync().ConfigureAwait(false);
         }
         catch (Exception)
         {
@@ -435,7 +495,15 @@ public sealed class MainWindowViewModel : ObservableObject
         ProgressText = "Processing command.";
 
         _cancellationTokenSource = new CancellationTokenSource();
-        var parser = new DeterministicCommandParser(new WakeWordDetector(WakePhrase));
+        var deterministicParser = new DeterministicCommandParser(new WakeWordDetector(WakePhrase));
+        ICommandParser parser = deterministicParser;
+        if (_settings.LocalBrainEnabled && GetBrain() is { } brain)
+        {
+            // Deterministic grammar first; the on-device brain only classifies what
+            // the grammar cannot map. Policy + confirmation still apply afterwards.
+            parser = new BrainCommandParser(deterministicParser, brain, () => _settings.LocalBrainEnabled);
+        }
+
         var engine = new TaskEngine(
             parser,
             new DefaultActionPolicy(),
@@ -462,6 +530,19 @@ public sealed class MainWindowViewModel : ObservableObject
             };
             ProgressValue = result.Status is CipherTaskStatus.Succeeded or CipherTaskStatus.SucceededUnverified ? 100 : 0;
             AuditTaskOutcome(result);
+
+            // Dictation mode transitions ride on the engine result so they inherit
+            // policy, journaling, and the spoken confirmation above.
+            if (result.ActionResult?.Success == true &&
+                result.Command.Intent == IntentKind.StartDictation)
+            {
+                await BeginDictationAsync().ConfigureAwait(true);
+            }
+            else if (result.ActionResult?.Success == true &&
+                     result.Command.Intent == IntentKind.StopDictation)
+            {
+                EndDictation();
+            }
 
             // An AI-suggested command is placed in the input box for explicit user review;
             // it only runs if the user presses Send (full policy + confirmation applies).
@@ -495,6 +576,7 @@ public sealed class MainWindowViewModel : ObservableObject
             WakePhrase = string.IsNullOrWhiteSpace(WakePhrase) ? "Hey CIPHER" : WakePhrase.Trim(),
             AlwaysOnTop = AlwaysOnTop,
             SpeechOutputEnabled = SpeechOutputEnabled,
+            LocalBrainEnabled = LocalBrainEnabled,
             AiDelegationEnabled = AiDelegationEnabled,
             AiBaseUrl = string.IsNullOrWhiteSpace(AiBaseUrl) ? _settings.AiBaseUrl : AiBaseUrl.Trim(),
             AiModel = string.IsNullOrWhiteSpace(AiModel) ? _settings.AiModel : AiModel.Trim()
@@ -749,8 +831,153 @@ public sealed class MainWindowViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Lazily creates the shared on-device brain. Returns null (once reported) when
+    /// the model files are not installed; every caller degrades gracefully.
+    /// </summary>
+    private ILocalBrain? GetBrain()
+    {
+        if (_brain is not null)
+        {
+            return _brain;
+        }
+
+        if (_brainProbed)
+        {
+            return null;
+        }
+
+        _brainProbed = true;
+        var directory = BrainModelLocator.Resolve(_settings.BrainModelPath);
+        if (directory is null)
+        {
+            if (!_brainUnavailableReported)
+            {
+                _brainUnavailableReported = true;
+                AddConversation(
+                    "CIPHER: The on-device brain files were not found, so questions and free-form " +
+                    "commands are limited to the built-in command list. (Expected the Flan-T5-small " +
+                    "model in a models\\brain folder next to the app.)");
+            }
+
+            return null;
+        }
+
+        _brain = new FlanT5Brain(directory);
+        return _brain;
+    }
+
+    private async Task BeginDictationAsync()
+    {
+        _dictationMode = true;
+        if (!IsListening)
+        {
+            // Dictation owns the microphone until stopped: continuous capture with
+            // no wake-phrase gating (the user asked for dictation explicitly).
+            _continuousListening = true;
+            _dictationListeningOwned = await StartListeningAsync().ConfigureAwait(true);
+            if (!_dictationListeningOwned)
+            {
+                _dictationMode = false;
+                _continuousListening = false;
+                AddConversation("CIPHER: Dictation could not start because the microphone is unavailable.");
+                return;
+            }
+        }
+
+        StatusText = "Dictation";
+        ProgressText = "Dictation is on — speak and I will type. Say 'stop dictation' to finish.";
+    }
+
+    private void EndDictation()
+    {
+        _dictationMode = false;
+        if (_dictationListeningOwned)
+        {
+            _dictationListeningOwned = false;
+            _continuousListening = false;
+            StopListening(processFlushed: false);
+        }
+    }
+
+    /// <summary>
+    /// Dictation-mode transcript handling. While dictating, wake-phrase gating is
+    /// bypassed (dictation was explicitly requested): every utterance is typed into
+    /// the focused window except the stop phrases and "new line" / "new paragraph".
+    /// </summary>
+    private void HandleDictationTranscript(string text)
+    {
+        var detector = new WakeWordDetector(
+            string.IsNullOrWhiteSpace(WakePhrase) ? "Hey CIPHER" : WakePhrase.Trim());
+        var wake = detector.Process(text);
+        var commandText = WakeWordDetector.NormalizeWhitespace(
+            wake.Detected ? wake.CommandText : text);
+        if (commandText.Length == 0)
+        {
+            return;
+        }
+
+        var normalized = commandText.Trim().TrimEnd('.').ToLowerInvariant();
+        if (normalized is "stop dictation" or "stop typing" or "end dictation" or
+            "dictation stop" or "dictation off" or "that's all" or "that is all")
+        {
+            _ = ExecuteTextAsync("stop dictation");
+            return;
+        }
+
+        if (normalized is "new line" or "next line" or "newline" or "new paragraph")
+        {
+            ProgressText = "Dictation: new line.";
+            var presses = normalized == "new paragraph" ? 2 : 1;
+            _ = Task.Run(() =>
+            {
+                try
+                {
+                    for (var index = 0; index < presses; index++)
+                    {
+                        _dictationInput.PressKeys("Enter");
+                    }
+                }
+                catch (Exception)
+                {
+                    // Typing must never break the voice loop.
+                }
+            });
+            return;
+        }
+
+        if (IsBusy)
+        {
+            ProgressText = "Still working on the previous command; that sentence was not typed.";
+            return;
+        }
+
+        AddConversation($"Dictating: {commandText}");
+        ProgressText = $"Dictating: {commandText}";
+        var textToType = commandText + " ";
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                _dictationInput.TypeText(textToType);
+            }
+            catch (Exception)
+            {
+                // Typing must never break the voice loop.
+            }
+        });
+    }
+
     private void HandleVoiceTranscript(string text)
     {
+        // Dictation intercepts transcripts before wake-phrase gating: while the mode
+        // is on, speech is text to type, not commands to run.
+        if (_dictationMode && !string.IsNullOrWhiteSpace(text))
+        {
+            HandleDictationTranscript(text);
+            return;
+        }
+
         if (_voiceSession is null || string.IsNullOrWhiteSpace(text))
         {
             return;

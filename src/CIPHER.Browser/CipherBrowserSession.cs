@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.Playwright;
 
 namespace CIPHER.Browser;
@@ -34,6 +35,143 @@ public sealed class CipherBrowserSession : IAsyncDisposable
             BrowserUrl.Normalize(url),
             new PageGotoOptions { WaitUntil = WaitUntilState.DOMContentLoaded })
             .ConfigureAwait(false);
+    }
+
+    private const string DuckDuckGoResultsScript = """
+        () => {
+          const out = [];
+          document.querySelectorAll('.result').forEach(r => {
+            const a = r.querySelector('.result__a');
+            if (!a) return;
+            const s = r.querySelector('.result__snippet');
+            out.push({
+              title: (a.textContent || '').trim(),
+              url: a.href || '',
+              snippet: s ? (s.textContent || '').trim() : ''
+            });
+          });
+          return JSON.stringify(out.slice(0, 6));
+        }
+        """;
+
+    private const string BingResultsScript = """
+        () => {
+          const out = [];
+          document.querySelectorAll('li.b_algo').forEach(r => {
+            const a = r.querySelector('h2 a');
+            if (!a) return;
+            const s = r.querySelector('.b_caption p');
+            out.push({
+              title: (a.textContent || '').trim(),
+              url: a.href || '',
+              snippet: s ? (s.textContent || '').trim() : ''
+            });
+          });
+          return JSON.stringify(out.slice(0, 6));
+        }
+        """;
+
+    /// <summary>
+    /// Runs a web search and extracts the top results (title, URL, snippet) from the
+    /// results page DOM. DuckDuckGo's plain-HTML endpoint is tried first (no scripts
+    /// or consent walls); Bing is the fallback when it yields nothing readable.
+    /// </summary>
+    public async Task<IReadOnlyList<WebSearchResult>> SearchAsync(
+        string query,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(query);
+        var page = await RequirePageAsync(cancellationToken).ConfigureAwait(false);
+
+        var duckUrl = "https://html.duckduckgo.com/html/?q=" + Uri.EscapeDataString(query);
+        await page.GotoAsync(
+            duckUrl,
+            new PageGotoOptions { WaitUntil = WaitUntilState.DOMContentLoaded }).ConfigureAwait(false);
+        var results = await ExtractSearchResultsAsync(page, DuckDuckGoResultsScript).ConfigureAwait(false);
+        if (results.Count > 0)
+        {
+            return results;
+        }
+
+        var bingUrl = "https://www.bing.com/search?q=" + Uri.EscapeDataString(query);
+        await page.GotoAsync(
+            bingUrl,
+            new PageGotoOptions { WaitUntil = WaitUntilState.DOMContentLoaded }).ConfigureAwait(false);
+        return await ExtractSearchResultsAsync(page, BingResultsScript).ConfigureAwait(false);
+    }
+
+    private static async Task<IReadOnlyList<WebSearchResult>> ExtractSearchResultsAsync(
+        IPage page,
+        string script)
+    {
+        string? json;
+        try
+        {
+            json = await page.EvaluateAsync<string>(script).ConfigureAwait(false);
+        }
+        catch (PlaywrightException)
+        {
+            return Array.Empty<WebSearchResult>();
+        }
+
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return Array.Empty<WebSearchResult>();
+        }
+
+        List<WebSearchResult>? parsed;
+        try
+        {
+            parsed = JsonSerializer.Deserialize<List<WebSearchResult>>(
+                json,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        }
+        catch (JsonException)
+        {
+            return Array.Empty<WebSearchResult>();
+        }
+
+        if (parsed is null)
+        {
+            return Array.Empty<WebSearchResult>();
+        }
+
+        return parsed
+            .Where(result => !string.IsNullOrWhiteSpace(result.Title))
+            .Select(result => result with { Url = UnwrapSearchRedirect(result.Url) })
+            .Take(6)
+            .ToList();
+    }
+
+    /// <summary>DuckDuckGo wraps result links in a redirect with the real URL in `uddg`.</summary>
+    private static string UnwrapSearchRedirect(string url)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            return url;
+        }
+
+        var marker = url.IndexOf("uddg=", StringComparison.OrdinalIgnoreCase);
+        if (marker < 0)
+        {
+            return url;
+        }
+
+        var encoded = url[(marker + "uddg=".Length)..];
+        var end = encoded.IndexOf('&');
+        if (end >= 0)
+        {
+            encoded = encoded[..end];
+        }
+
+        try
+        {
+            return Uri.UnescapeDataString(encoded);
+        }
+        catch (UriFormatException)
+        {
+            return url;
+        }
     }
 
     public async Task<string> GetTitleAsync(CancellationToken cancellationToken = default)
